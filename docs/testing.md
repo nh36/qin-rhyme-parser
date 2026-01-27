@@ -36,3 +36,22 @@ Notes
 
 - The canary is intentionally strict: any deviation is surfaced as a failing test so regressions are caught early.
 - The images manifest and image separation reduces false positives in image integrity checks; glyph substitution images are listed in extracted_images/images_manifest.json.
+
+Canonical CI/test entrypoint
+
+A canonical, deterministic test run is provided to avoid ambiguity about which outputs file is checked.
+
+- Makefile target (recommended for CI):
+
+  make test
+
+  This runs the parser to produce fresh outputs and then runs the manifest-driven canary against the generated manifest:
+
+    python3 main.py --mode both --outdir outputs --pdf hudie2023_qin_rhymes.pdf && python3 scripts/regression_canaries.py --manifest outputs/latest_manifest.json
+
+- Manual invocation:
+
+    python3 main.py --mode both --outdir outputs --pdf hudie2023_qin_rhymes.pdf
+    python3 scripts/regression_canaries.py --manifest outputs/latest_manifest.json
+
+Please use the Makefile target or the above commands to ensure the canary runs against the fresh manifested outputs rather than an arbitrary "newest" file.
