@@ -1,0 +1,1377 @@
+{
+  "generated": "20260127T190258Z",
+  "total_rows": 692,
+  "total_rhyme_groups": 505,
+  "parse_forward_filled_count": 165,
+  "parse_source_forward_filled_count": 498,
+  "annotation_summary": {
+    "merged_rows": [
+      {
+        "RowID": "ROW_P202_T001_p202_r0011",
+        "merged_with_row": 658,
+        "new_rhyme_tokens": [
+          "與",
+          "稷",
+          "翼"
+        ]
+      }
+    ],
+    "merged_count": 1,
+    "prose_dropped_rows": [
+      {
+        "RowID": "ROW_P149_T001_p149_r0002",
+        "TableID": "P149_T001",
+        "page": 149,
+        "row_in_source": 2,
+        "reason_codes": {
+          "contains_digits": true,
+          "numeric_row": true,
+          "failed_table_signature": true
+        },
+        "snippet": "24 8 3 4 25 1 3 5 6"
+      },
+      {
+        "RowID": "ROW_P149_T001_p149_r0004",
+        "TableID": "P149_T001",
+        "page": 149,
+        "row_in_source": 4,
+        "reason_codes": {
+          "contains_digits": true,
+          "numeric_row": true,
+          "failed_table_signature": true
+        },
+        "snippet": "7 1 0 2 4 0 8 2 10 1 0"
+      },
+      {
+        "RowID": "ROW_P149_T001_p149_r0006",
+        "TableID": "P149_T001",
+        "page": 149,
+        "row_in_source": 6,
+        "reason_codes": {
+          "contains_digits": true,
+          "numeric_row": true,
+          "failed_table_signature": true
+        },
+        "snippet": "1 1 4 36 11 10 1 2 3 0"
+      },
+      {
+        "RowID": "ROW_P151_T001_p151_r0002",
+        "TableID": "P151_T001",
+        "page": 151,
+        "row_in_source": 2,
+        "reason_codes": {
+          "contains_digits": true,
+          "numeric_row": true,
+          "failed_table_signature": true
+        },
+        "snippet": "1 2 4 6 2"
+      },
+      {
+        "RowID": "ROW_P151_T001_p151_r0004",
+        "TableID": "P151_T001",
+        "page": 151,
+        "row_in_source": 4,
+        "reason_codes": {
+          "contains_digits": true,
+          "numeric_row": true,
+          "failed_table_signature": true
+        },
+        "snippet": "1 6 1 2 1"
+      },
+      {
+        "RowID": "ROW_P151_T001_p151_r0006",
+        "TableID": "P151_T001",
+        "page": 151,
+        "row_in_source": 6,
+        "reason_codes": {
+          "contains_digits": true,
+          "numeric_row": true,
+          "failed_table_signature": true
+        },
+        "snippet": "4 2"
+      },
+      {
+        "RowID": "ROW_P151_T001_p151_r0007",
+        "TableID": "P151_T001",
+        "page": 151,
+        "row_in_source": 7,
+        "reason_codes": {
+          "contains_digits": true,
+          "failed_table_signature": true
+        },
+        "snippet": "魚鐸陽 4"
+      },
+      {
+        "RowID": "ROW_P152_T001_p152_r0002",
+        "TableID": "P152_T001",
+        "page": 152,
+        "row_in_source": 2,
+        "reason_codes": {
+          "contains_digits": true,
+          "numeric_row": true,
+          "failed_table_signature": true
+        },
+        "snippet": "1 1 3 5 3 1 4 3 2 1"
+      },
+      {
+        "RowID": "ROW_P152_T001_p152_r0004",
+        "TableID": "P152_T001",
+        "page": 152,
+        "row_in_source": 4,
+        "reason_codes": {
+          "contains_digits": true,
+          "numeric_row": true,
+          "failed_table_signature": true
+        },
+        "snippet": "1 1 1 1 1 1"
+      },
+      {
+        "RowID": "ROW_P152_T001_p152_r0006",
+        "TableID": "P152_T001",
+        "page": 152,
+        "row_in_source": 6,
+        "reason_codes": {
+          "contains_digits": true,
+          "numeric_row": true,
+          "failed_table_signature": true
+        },
+        "snippet": "1 2 1 2 2 6 1 2 1 1 1 2 1 1 1"
+      },
+      {
+        "RowID": "ROW_P152_T001_p152_r0008",
+        "TableID": "P152_T001",
+        "page": 152,
+        "row_in_source": 8,
+        "reason_codes": {
+          "contains_digits": true,
+          "numeric_row": true,
+          "failed_table_signature": true
+        },
+        "snippet": "1 1 1 3 2 1 1 1 1"
+      },
+      {
+        "RowID": "ROW_P169_T001_p169_r0002",
+        "TableID": "P169_T001",
+        "page": 169,
+        "row_in_source": 1,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P169_T001_p169_r0024",
+        "TableID": "P169_T001",
+        "page": 169,
+        "row_in_source": 23,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P170_T001_p170_r0006",
+        "TableID": "P170_T001",
+        "page": 170,
+        "row_in_source": 6,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P170_T001_p170_r0010",
+        "TableID": "P170_T001",
+        "page": 170,
+        "row_in_source": 10,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P170_T001_p170_r0016",
+        "TableID": "P170_T001",
+        "page": 170,
+        "row_in_source": 16,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P172_T001_p172_r0002",
+        "TableID": "P172_T001",
+        "page": 172,
+        "row_in_source": 1,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P173_T001_p173_r0003",
+        "TableID": "P173_T001",
+        "page": 173,
+        "row_in_source": 3,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P173_T001_p173_r0007",
+        "TableID": "P173_T001",
+        "page": 173,
+        "row_in_source": 7,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P173_T001_p173_r0010",
+        "TableID": "P173_T001",
+        "page": 173,
+        "row_in_source": 10,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P173_T001_p173_r0015",
+        "TableID": "P173_T001",
+        "page": 173,
+        "row_in_source": 15,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P173_T001_p173_r0017",
+        "TableID": "P173_T001",
+        "page": 173,
+        "row_in_source": 17,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P174_T002_p174_r0002",
+        "TableID": "P174_T002",
+        "page": 174,
+        "row_in_source": 4,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P175_T001_p175_r0001",
+        "TableID": "P175_T001",
+        "page": 175,
+        "row_in_source": 1,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P175_T001_p175_r0006",
+        "TableID": "P175_T001",
+        "page": 175,
+        "row_in_source": 6,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P175_T001_p175_r0008",
+        "TableID": "P175_T001",
+        "page": 175,
+        "row_in_source": 8,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P175_T001_p175_r0014",
+        "TableID": "P175_T001",
+        "page": 175,
+        "row_in_source": 14,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P176_T001_p176_r0002",
+        "TableID": "P176_T001",
+        "page": 176,
+        "row_in_source": 1,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P177_T001_p177_r0001",
+        "TableID": "P177_T001",
+        "page": 177,
+        "row_in_source": 1,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P177_T001_p177_r0007",
+        "TableID": "P177_T001",
+        "page": 177,
+        "row_in_source": 7,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P177_T001_p177_r0009",
+        "TableID": "P177_T001",
+        "page": 177,
+        "row_in_source": 9,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P177_T001_p177_r0012",
+        "TableID": "P177_T001",
+        "page": 177,
+        "row_in_source": 12,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P177_T001_p177_r0014",
+        "TableID": "P177_T001",
+        "page": 177,
+        "row_in_source": 14,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P178_T001_p178_r0002",
+        "TableID": "P178_T001",
+        "page": 178,
+        "row_in_source": 1,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P178_T001_p178_r0008",
+        "TableID": "P178_T001",
+        "page": 178,
+        "row_in_source": 7,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P179_T001_p179_r0004",
+        "TableID": "P179_T001",
+        "page": 179,
+        "row_in_source": 4,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P179_T001_p179_r0007",
+        "TableID": "P179_T001",
+        "page": 179,
+        "row_in_source": 7,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P179_T001_p179_r0011",
+        "TableID": "P179_T001",
+        "page": 179,
+        "row_in_source": 11,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P180_T001_p180_r0002",
+        "TableID": "P180_T001",
+        "page": 180,
+        "row_in_source": 1,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P180_T001_p180_r0017",
+        "TableID": "P180_T001",
+        "page": 180,
+        "row_in_source": 16,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P180_T001_p180_r0025",
+        "TableID": "P180_T001",
+        "page": 180,
+        "row_in_source": 24,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P181_T001_p181_r0006",
+        "TableID": "P181_T001",
+        "page": 181,
+        "row_in_source": 6,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P181_T001_p181_r0008",
+        "TableID": "P181_T001",
+        "page": 181,
+        "row_in_source": 8,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P181_T001_p181_r0011",
+        "TableID": "P181_T001",
+        "page": 181,
+        "row_in_source": 11,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P182_T001_p182_r0002",
+        "TableID": "P182_T001",
+        "page": 182,
+        "row_in_source": 1,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P182_T001_p182_r0007",
+        "TableID": "P182_T001",
+        "page": 182,
+        "row_in_source": 6,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P182_T001_p182_r0010",
+        "TableID": "P182_T001",
+        "page": 182,
+        "row_in_source": 9,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P182_T002_p182_r0002",
+        "TableID": "P182_T002",
+        "page": 182,
+        "row_in_source": 12,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P182_T002_p182_r0011",
+        "TableID": "P182_T002",
+        "page": 182,
+        "row_in_source": 21,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P182_T002_p182_r0015",
+        "TableID": "P182_T002",
+        "page": 182,
+        "row_in_source": 25,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P183_T001_p183_r0003",
+        "TableID": "P183_T001",
+        "page": 183,
+        "row_in_source": 3,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P183_T001_p183_r0006",
+        "TableID": "P183_T001",
+        "page": 183,
+        "row_in_source": 6,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P183_T002_p183_r0002",
+        "TableID": "P183_T002",
+        "page": 183,
+        "row_in_source": 10,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P183_T002_p183_r0008",
+        "TableID": "P183_T002",
+        "page": 183,
+        "row_in_source": 16,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P184_T001_p184_r0001",
+        "TableID": "P184_T001",
+        "page": 184,
+        "row_in_source": 1,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P184_T001_p184_r0003",
+        "TableID": "P184_T001",
+        "page": 184,
+        "row_in_source": 3,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P184_T001_p184_r0007",
+        "TableID": "P184_T001",
+        "page": 184,
+        "row_in_source": 7,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P184_T002_p184_r0002",
+        "TableID": "P184_T002",
+        "page": 184,
+        "row_in_source": 16,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P184_T002_p184_r0004",
+        "TableID": "P184_T002",
+        "page": 184,
+        "row_in_source": 18,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P185_T001_p185_r0002",
+        "TableID": "P185_T001",
+        "page": 185,
+        "row_in_source": 1,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P185_T001_p185_r0004",
+        "TableID": "P185_T001",
+        "page": 185,
+        "row_in_source": 3,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P185_T001_p185_r0006",
+        "TableID": "P185_T001",
+        "page": 185,
+        "row_in_source": 5,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P186_T002_p186_r0002",
+        "TableID": "P186_T002",
+        "page": 186,
+        "row_in_source": 2,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P186_T002_p186_r0005",
+        "TableID": "P186_T002",
+        "page": 186,
+        "row_in_source": 5,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P186_T002_p186_r0007",
+        "TableID": "P186_T002",
+        "page": 186,
+        "row_in_source": 7,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P186_T002_p186_r0009",
+        "TableID": "P186_T002",
+        "page": 186,
+        "row_in_source": 9,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P186_T003_p186_r0002",
+        "TableID": "P186_T003",
+        "page": 186,
+        "row_in_source": 11,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P187_T001_p187_r0002",
+        "TableID": "P187_T001",
+        "page": 187,
+        "row_in_source": 1,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P187_T002_p187_r0002",
+        "TableID": "P187_T002",
+        "page": 187,
+        "row_in_source": 3,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P191_T001_p191_r0002",
+        "TableID": "P191_T001",
+        "page": 191,
+        "row_in_source": 2,
+        "reason_codes": {
+          "contains_digits": true,
+          "outside_table": true,
+          "failed_table_signature": true
+        },
+        "snippet": "精絜正直,44-2 慎謹㹂固,45-2 （鱼） 審悉毋私,46-2 徵密咸祭,47-2 （月） 安倩毋苛,48-2 害當賞罰。49-2 （月） 剛毋暴,50-2 廉而毋帒,51-2 （月） 復悔其勝。52-2 毋忿怒以夬,53-2 （月） 寬俗忠信,54-2 禾平毋 ,55-2 （元） 悔過勿重。56-2 敬士勿犯,57-2 茲下勿淩58-2。"
+      },
+      {
+        "RowID": "ROW_P191_T001_p191_r0003",
+        "TableID": "P191_T001",
+        "page": 191,
+        "row_in_source": 3,
+        "reason_codes": {
+          "contains_digits": true,
+          "outside_table": true,
+          "failed_table_signature": true
+        },
+        "snippet": "聽閒勿塞,01-3 （職） 審智民能,02-3 （蒸） 善度黔首力,03-3 （職） 勞以 之,04-3 正以撟之。05-3 反若其身。06-3 （真） 旁转"
+      },
+      {
+        "RowID": "ROW_P191_T001_p191_r0004",
+        "TableID": "P191_T001",
+        "page": 191,
+        "row_in_source": 4,
+        "reason_codes": {
+          "contains_digits": true,
+          "outside_table": true,
+          "failed_table_signature": true
+        },
+        "snippet": "臨財見利, （質） 不取笱富。59-4 臨難見死, （脂） 不取笱免 。60-4"
+      },
+      {
+        "RowID": "ROW_P191_T001_p191_r0005",
+        "TableID": "P191_T001",
+        "page": 191,
+        "row_in_source": 5,
+        "reason_codes": {
+          "contains_digits": true,
+          "outside_table": true,
+          "failed_table_signature": true
+        },
+        "snippet": "正而行修而身,61-4 （真） 禍與畐鄰。62-4（真）"
+      },
+      {
+        "RowID": "ROW_P192_T001_p192_r0001",
+        "TableID": "P192_T001",
+        "page": 192,
+        "row_in_source": 1,
+        "reason_codes": {
+          "contains_digits": true,
+          "outside_table": true,
+          "failed_table_signature": true
+        },
+        "snippet": "吏有五善:27-3 一曰忠信敬上,28-3 （陽） 二曰精廉無旁,29-3 （陽） 三曰舉吏審當,30-3 （陽） 四曰喜爲善行,31-3 （陽） 五曰龔敬多讓32-3 （陽） 五者畢至必有天 當 33-3 （陽） 一曰中信敬上,01（4 陽） 二曰精廉毋謗,01（5 陽） 三曰舉事審當,05（9 陽） 四曰喜爲善行,05（2 陽） 五曰龏敬多讓,04（7 陽） 五者已至必有天當。 046 （陽）"
+      },
+      {
+        "RowID": "ROW_P192_T001_p192_r0002",
+        "TableID": "P192_T001",
+        "page": 192,
+        "row_in_source": 2,
+        "reason_codes": {
+          "contains_digits": true,
+          "outside_table": true,
+          "failed_table_signature": true
+        },
+        "snippet": "吏有五過:41-3 一曰誇而夬,42-3 （月） 二曰貴而企, 43-3（支） 三曰亶折割,44-3 （月） 四曰犯上不智其 害,45-3 （月） 五曰間士貴貨貝。46-3 一曰誇以迣,051（月） 二曰貴以大,044（月） 三曰擅裚割,043（月） 四曰犯上弗智害,042 （月） 五曰賤士貴□□。057 （月）"
+      },
+      {
+        "RowID": "ROW_P192_T001_p192_r0003",
+        "TableID": "P192_T001",
+        "page": 192,
+        "row_in_source": 3,
+        "reason_codes": {
+          "contains_digits": true,
+          "outside_table": true,
+          "failed_table_signature": true
+        },
+        "snippet": "吏有五失： 一曰視黔首渠驁,34-3 （宵） 二曰不安其朝,35-3 （宵） 三曰居官善取,36-3 （侯） 四曰受令不僂,37-3 （侯） 五曰安其家忘官府， （侯） 五者畢至是胃（謂） 過主。 （侯） 一曰見民□□,056 二曰不安其朝,04（9 宵） 三曰居官善取,01（8 宵） 四曰受令不僂,01（9 侯） 五曰安家室而忘官 府。024 （侯）"
+      },
+      {
+        "RowID": "ROW_P193_T001_p193_r0001",
+        "TableID": "P193_T001",
+        "page": 193,
+        "row_in_source": 1,
+        "reason_codes": {
+          "contains_digits": true,
+          "outside_table": true,
+          "failed_table_signature": true
+        },
+        "snippet": "吏有五则,47-3 一曰不祭所親則韋數 至,48-3 （質） 二曰不智所使 则以䙮索利,49-3 （質） 三曰舉事不當則黔首 指,50-3 （脂） 四曰喜言隋行則黔首 毋所比,51-3 （脂） 五曰善非其上則身及 於死；52-3 （脂） 一曰不察親, 不察親則怨數之,041 （之） 二曰不智所使,不智 所使則權衡利,04（0 質） 三曰興事不當, 興事不當則民錫指， 039 （脂） 四曰善言隋行則"
+      },
+      {
+        "RowID": "ROW_P193_T001_p193_r0002",
+        "TableID": "P193_T001",
+        "page": 193,
+        "row_in_source": 2,
+        "reason_codes": {
+          "contains_digits": true,
+          "outside_table": true,
+          "failed_table_signature": true
+        },
+        "snippet": "戒之戒之， 材不可歸73-4 （微） 慎之慎之， 言不可追,74-4 （微） 謹之謹之, 某不可遺75-4 （微） 綦之綦之， 食不可賞,76-4 （陽） 敃之敃之 某不可行,77-4 （陽） 術狄之心不可長。78-4 （陽） 武之材不可歸, （微） 謹之謀不可遺, （微） 慎之言不可追, （微） 之食不可嘗也。 020 （陽）"
+      },
+      {
+        "RowID": "ROW_P193_T001_p193_r0003",
+        "TableID": "P193_T001",
+        "page": 193,
+        "row_in_source": 3,
+        "reason_codes": {
+          "contains_digits": true,
+          "outside_table": true,
+          "failed_table_signature": true
+        },
+        "snippet": "爲人君则惠, 爲人臣【则】忠, 爲人父則茲, 爲人子则孝, 爲人上则明, 爲人下则聖, 爲人友则不爭, 能行此, 終85【日】勿亡者,身 之保殹。06-1 （無韻）"
+      },
+      {
+        "RowID": "ROW_P194_T001_p194_r0001",
+        "TableID": "P194_T001",
+        "page": 194,
+        "row_in_source": 1,
+        "reason_codes": {
+          "contains_digits": true,
+          "outside_table": true,
+          "failed_table_signature": true
+        },
+        "snippet": "剛能柔,049 （幽） 仁能忍,018 良不得。019 （職） □忠爲榦,024 慎前慮後,041 （侯） 審耳目口,040 （侯） 十耳當一目。039"
+      },
+      {
+        "RowID": "ROW_P194_T001_p194_r0002",
+        "TableID": "P194_T001",
+        "page": 194,
+        "row_in_source": 2,
+        "reason_codes": {
+          "contains_latin": true,
+          "contains_digits": true,
+          "outside_table": true,
+          "failed_table_signature": true
+        },
+        "snippet": "處如梁, （陽） 言如盟, （陽） 出則敬, （耕） 毋褫張, （陽） 炤如有光。BI （陽）"
+      },
+      {
+        "RowID": "ROW_P194_T001_p194_r0003",
+        "TableID": "P194_T001",
+        "page": 194,
+        "row_in_source": 3,
+        "reason_codes": {
+          "contains_latin": true,
+          "contains_digits": true,
+          "outside_table": true,
+          "failed_table_signature": true
+        },
+        "snippet": "有嚴不治, （之） 與民有期, （之） 安毆而步, （鐸） 毋使民溥BIII （魚）"
+      },
+      {
+        "RowID": "ROW_P194_T001_p194_r0004",
+        "TableID": "P194_T001",
+        "page": 194,
+        "row_in_source": 4,
+        "reason_codes": {
+          "contains_latin": true,
+          "contains_digits": true,
+          "outside_table": true,
+          "failed_table_signature": true
+        },
+        "snippet": "安而行之, （陽） 事民望之, （陽） 道易車利, （脂） 精而毋致。BIX （質）"
+      },
+      {
+        "RowID": "ROW_P194_T001_p194_r0005",
+        "TableID": "P194_T001",
+        "page": 194,
+        "row_in_source": 5,
+        "reason_codes": {
+          "contains_latin": true,
+          "contains_digits": true,
+          "outside_table": true,
+          "failed_table_signature": true
+        },
+        "snippet": "坨修城固, （魚） 民心乃殷, （文） 不時而怒, （魚） 民將逃去。BXI （魚） 百事既成, （耕） 民心乃寧, （耕） 〖既無〗後憂, （幽） 從正之經。BXII （耕）"
+      },
+      {
+        "RowID": "ROW_P195_T001_p195_r0002",
+        "TableID": "P195_T001",
+        "page": 195,
+        "row_in_source": 1,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P197_T001_p197_r0011",
+        "TableID": "P197_T001",
+        "page": 197,
+        "row_in_source": 11,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P198_T001_p198_r0023",
+        "TableID": "P198_T001",
+        "page": 198,
+        "row_in_source": 23,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P199_T001_p199_r0011",
+        "TableID": "P199_T001",
+        "page": 199,
+        "row_in_source": 11,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P199_T001_p199_r0022",
+        "TableID": "P199_T001",
+        "page": 199,
+        "row_in_source": 22,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      },
+      {
+        "RowID": "ROW_P200_T001_p200_r0011",
+        "TableID": "P200_T001",
+        "page": 200,
+        "row_in_source": 11,
+        "reason_codes": {
+          "failed_table_signature": true
+        },
+        "snippet": ""
+      }
+    ],
+    "prose_dropped_count": 90,
+    "alignment_warnings_rows": [],
+    "alignment_warnings_count": 0,
+    "rows_with_images": [
+      {
+        "RowID": "ROW_P173_T001_p173_r0004",
+        "token_image_map": [
+          [],
+          []
+        ],
+        "cell_image_map": [
+          [],
+          [],
+          [],
+          [],
+          [
+            "IMG_p173_001"
+          ]
+        ]
+      },
+      {
+        "RowID": "ROW_P173_T001_p173_r0005",
+        "token_image_map": [
+          [],
+          []
+        ],
+        "cell_image_map": [
+          [],
+          [],
+          [],
+          [],
+          [
+            "IMG_p173_001"
+          ]
+        ]
+      },
+      {
+        "RowID": "ROW_P174_T002_p174_r0009",
+        "token_image_map": [
+          [],
+          []
+        ],
+        "cell_image_map": [
+          [],
+          [],
+          [],
+          [],
+          [
+            "IMG_p174_001"
+          ]
+        ]
+      },
+      {
+        "RowID": "ROW_P174_T002_p174_r0010",
+        "token_image_map": [
+          [],
+          []
+        ],
+        "cell_image_map": [
+          [],
+          [],
+          [],
+          [],
+          [
+            "IMG_p174_001"
+          ]
+        ]
+      },
+      {
+        "RowID": "ROW_P178_T001_p178_r0009",
+        "token_image_map": [
+          [],
+          []
+        ],
+        "cell_image_map": [
+          [],
+          [],
+          [],
+          [],
+          [
+            "IMG_p178_001"
+          ]
+        ]
+      },
+      {
+        "RowID": "ROW_P178_T001_p178_r0010",
+        "token_image_map": [
+          [],
+          []
+        ],
+        "cell_image_map": [
+          [],
+          [],
+          [],
+          [],
+          [
+            "IMG_p178_001"
+          ]
+        ]
+      },
+      {
+        "RowID": "ROW_P192_T001_p192_r0001",
+        "token_image_map": [],
+        "cell_image_map": [
+          [],
+          [
+            "IMG_p192_001"
+          ],
+          [],
+          []
+        ]
+      },
+      {
+        "RowID": "ROW_P192_T001_p192_r0002",
+        "token_image_map": [],
+        "cell_image_map": [
+          [],
+          [
+            "IMG_p192_001"
+          ],
+          [
+            "IMG_p192_001",
+            "IMG_p192_001"
+          ],
+          []
+        ]
+      },
+      {
+        "RowID": "ROW_P192_T001_p192_r0003",
+        "token_image_map": [
+          [
+            "IMG_p192_001",
+            "IMG_p192_001"
+          ],
+          [],
+          [],
+          [],
+          [],
+          [],
+          [],
+          [],
+          [],
+          [],
+          [],
+          [],
+          [],
+          []
+        ],
+        "cell_image_map": [
+          [],
+          [],
+          [
+            "IMG_p192_001",
+            "IMG_p192_001"
+          ],
+          []
+        ]
+      },
+      {
+        "RowID": "ROW_P194_T001_p194_r0001",
+        "token_image_map": [
+          [],
+          [],
+          [],
+          [],
+          [],
+          [],
+          [],
+          [
+            "IMG_p194_001"
+          ],
+          [],
+          [],
+          [],
+          [],
+          [],
+          [],
+          [],
+          []
+        ],
+        "cell_image_map": [
+          [],
+          [],
+          [
+            "IMG_p194_001"
+          ],
+          []
+        ]
+      },
+      {
+        "RowID": "ROW_P196_T001_p196_r0037",
+        "token_image_map": [
+          [],
+          [],
+          []
+        ],
+        "cell_image_map": [
+          [],
+          [],
+          [],
+          [],
+          [
+            "IMG_p196_001"
+          ]
+        ]
+      }
+    ],
+    "rows_with_images_count": 11,
+    "forward_filled_rows": [],
+    "forward_filled_count": 0,
+    "source_forward_filled_rows": [],
+    "source_forward_filled_count": 0,
+    "unresolved_rows": [],
+    "prose_samples": [
+      {
+        "RowID": "ROW_P149_T001_p149_r0002",
+        "TableID": "P149_T001",
+        "page": 149,
+        "row_in_source": 2,
+        "reason_codes": {
+          "contains_digits": true,
+          "numeric_row": true,
+          "failed_table_signature": true
+        },
+        "snippet": "24 8 3 4 25 1 3 5 6"
+      },
+      {
+        "RowID": "ROW_P149_T001_p149_r0004",
+        "TableID": "P149_T001",
+        "page": 149,
+        "row_in_source": 4,
+        "reason_codes": {
+          "contains_digits": true,
+          "numeric_row": true,
+          "failed_table_signature": true
+        },
+        "snippet": "7 1 0 2 4 0 8 2 10 1 0"
+      },
+      {
+        "RowID": "ROW_P149_T001_p149_r0006",
+        "TableID": "P149_T001",
+        "page": 149,
+        "row_in_source": 6,
+        "reason_codes": {
+          "contains_digits": true,
+          "numeric_row": true,
+          "failed_table_signature": true
+        },
+        "snippet": "1 1 4 36 11 10 1 2 3 0"
+      },
+      {
+        "RowID": "ROW_P151_T001_p151_r0002",
+        "TableID": "P151_T001",
+        "page": 151,
+        "row_in_source": 2,
+        "reason_codes": {
+          "contains_digits": true,
+          "numeric_row": true,
+          "failed_table_signature": true
+        },
+        "snippet": "1 2 4 6 2"
+      },
+      {
+        "RowID": "ROW_P151_T001_p151_r0004",
+        "TableID": "P151_T001",
+        "page": 151,
+        "row_in_source": 4,
+        "reason_codes": {
+          "contains_digits": true,
+          "numeric_row": true,
+          "failed_table_signature": true
+        },
+        "snippet": "1 6 1 2 1"
+      },
+      {
+        "RowID": "ROW_P151_T001_p151_r0006",
+        "TableID": "P151_T001",
+        "page": 151,
+        "row_in_source": 6,
+        "reason_codes": {
+          "contains_digits": true,
+          "numeric_row": true,
+          "failed_table_signature": true
+        },
+        "snippet": "4 2"
+      },
+      {
+        "RowID": "ROW_P151_T001_p151_r0007",
+        "TableID": "P151_T001",
+        "page": 151,
+        "row_in_source": 7,
+        "reason_codes": {
+          "contains_digits": true,
+          "failed_table_signature": true
+        },
+        "snippet": "魚鐸陽 4"
+      },
+      {
+        "RowID": "ROW_P152_T001_p152_r0002",
+        "TableID": "P152_T001",
+        "page": 152,
+        "row_in_source": 2,
+        "reason_codes": {
+          "contains_digits": true,
+          "numeric_row": true,
+          "failed_table_signature": true
+        },
+        "snippet": "1 1 3 5 3 1 4 3 2 1"
+      },
+      {
+        "RowID": "ROW_P152_T001_p152_r0004",
+        "TableID": "P152_T001",
+        "page": 152,
+        "row_in_source": 4,
+        "reason_codes": {
+          "contains_digits": true,
+          "numeric_row": true,
+          "failed_table_signature": true
+        },
+        "snippet": "1 1 1 1 1 1"
+      },
+      {
+        "RowID": "ROW_P152_T001_p152_r0006",
+        "TableID": "P152_T001",
+        "page": 152,
+        "row_in_source": 6,
+        "reason_codes": {
+          "contains_digits": true,
+          "numeric_row": true,
+          "failed_table_signature": true
+        },
+        "snippet": "1 2 1 2 2 6 1 2 1 1 1 2 1 1 1"
+      }
+    ]
+  },
+  "unreferenced_extractions": [
+    "IMG_p170_001",
+    "IMG_p171_001",
+    "IMG_p171_002",
+    "IMG_p172_001",
+    "IMG_p173_002",
+    "IMG_p173_003",
+    "IMG_p173_004",
+    "IMG_p173_005",
+    "IMG_p174_002",
+    "IMG_p174_003",
+    "IMG_p174_004",
+    "IMG_p174_005",
+    "IMG_p174_006",
+    "IMG_p174_007",
+    "IMG_p174_008",
+    "IMG_p174_009",
+    "IMG_p175_001",
+    "IMG_p176_001",
+    "IMG_p177_001",
+    "IMG_p177_002",
+    "IMG_p177_003",
+    "IMG_p177_004",
+    "IMG_p178_002",
+    "IMG_p178_003",
+    "IMG_p180_001",
+    "IMG_p180_002",
+    "IMG_p181_001",
+    "IMG_p182_001",
+    "IMG_p183_001",
+    "IMG_p183_002",
+    "IMG_p184_001",
+    "IMG_p185_001",
+    "IMG_p186_001",
+    "IMG_p186_002",
+    "IMG_p191_001",
+    "IMG_p191_002",
+    "IMG_p191_003",
+    "IMG_p191_004",
+    "IMG_p191_005",
+    "IMG_p193_001",
+    "IMG_p193_002",
+    "IMG_p193_003",
+    "IMG_p195_001",
+    "IMG_p195_002",
+    "IMG_p196_002",
+    "IMG_p198_001",
+    "IMG_p198_002",
+    "IMG_p198_003",
+    "IMG_p199_001",
+    "IMG_p199_002",
+    "IMG_p199_003",
+    "IMG_p200_001",
+    "IMG_p201_001",
+    "IMG_p201_002",
+    "IMG_p201_003",
+    "IMG_p201_004",
+    "IMG_p201_005",
+    "IMG_p202_001",
+    "IMG_p202_002",
+    "IMG_p202_003",
+    "IMG_p203_001",
+    "IMG_p203_002"
+  ],
+  "unreferenced_extractions_count": 62
+}

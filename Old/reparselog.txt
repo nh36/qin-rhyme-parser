@@ -1,0 +1,6 @@
+/Users/nathanhill/Qin rhyme parser/main.py:152: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  ts = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
+Wrote rhyme groups to outputs/rhyme_output.20260127T132820Z.txt
+Wrote annotation table to outputs/rhyme_annotations.20260127T132820Z.csv
+Wrote line export to outputs/poem_lines.20260127T132820Z.csv
+Wrote metadata and README

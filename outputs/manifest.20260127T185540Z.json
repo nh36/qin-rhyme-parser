@@ -1,0 +1,10 @@
+{
+  "run_id": "20260127T185540Z",
+  "files": [
+    "rhyme_annotations.20260127T185540Z.csv",
+    "poem_lines.20260127T185540Z.csv",
+    "rhyme_output.20260127T185540Z.txt",
+    "warnings.20260127T185540Z.json",
+    "summary.20260127T185540Z.json"
+  ]
+}

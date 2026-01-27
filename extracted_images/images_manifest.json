@@ -1,0 +1,348 @@
+{
+  "mapping": [
+    {
+      "id": "IMG_p170_001",
+      "file": "extracted_images/page_170_img_01.png"
+    },
+    {
+      "id": "IMG_p171_001",
+      "file": "extracted_images/page_171_img_01.png"
+    },
+    {
+      "id": "IMG_p171_002",
+      "file": "extracted_images/page_171_img_02.png"
+    },
+    {
+      "id": "IMG_p172_001",
+      "file": "extracted_images/page_172_img_01.png"
+    },
+    {
+      "id": "IMG_p173_001",
+      "file": "extracted_images/page_173_img_01.png"
+    },
+    {
+      "id": "IMG_p173_002",
+      "file": "extracted_images/page_173_img_02.png"
+    },
+    {
+      "id": "IMG_p173_003",
+      "file": "extracted_images/page_173_img_03.png"
+    },
+    {
+      "id": "IMG_p173_004",
+      "file": "extracted_images/page_173_img_04.png"
+    },
+    {
+      "id": "IMG_p173_005",
+      "file": "extracted_images/page_173_img_05.png"
+    },
+    {
+      "id": "IMG_p174_001",
+      "file": "extracted_images/page_174_img_01.png"
+    },
+    {
+      "id": "IMG_p174_002",
+      "file": "extracted_images/page_174_img_02.png"
+    },
+    {
+      "id": "IMG_p174_003",
+      "file": "extracted_images/page_174_img_03.png"
+    },
+    {
+      "id": "IMG_p174_004",
+      "file": "extracted_images/page_174_img_04.png"
+    },
+    {
+      "id": "IMG_p174_005",
+      "file": "extracted_images/page_174_img_05.png"
+    },
+    {
+      "id": "IMG_p174_006",
+      "file": "extracted_images/page_174_img_06.png"
+    },
+    {
+      "id": "IMG_p174_007",
+      "file": "extracted_images/page_174_img_07.png"
+    },
+    {
+      "id": "IMG_p174_008",
+      "file": "extracted_images/page_174_img_08.png"
+    },
+    {
+      "id": "IMG_p174_009",
+      "file": "extracted_images/page_174_img_09.png"
+    },
+    {
+      "id": "IMG_p175_001",
+      "file": "extracted_images/page_175_img_01.png"
+    },
+    {
+      "id": "IMG_p176_001",
+      "file": "extracted_images/page_176_img_01.png"
+    },
+    {
+      "id": "IMG_p177_001",
+      "file": "extracted_images/page_177_img_01.png"
+    },
+    {
+      "id": "IMG_p177_002",
+      "file": "extracted_images/page_177_img_02.png"
+    },
+    {
+      "id": "IMG_p177_003",
+      "file": "extracted_images/page_177_img_03.png"
+    },
+    {
+      "id": "IMG_p177_004",
+      "file": "extracted_images/page_177_img_04.png"
+    },
+    {
+      "id": "IMG_p178_001",
+      "file": "extracted_images/page_178_img_01.png"
+    },
+    {
+      "id": "IMG_p178_002",
+      "file": "extracted_images/page_178_img_02.png"
+    },
+    {
+      "id": "IMG_p178_003",
+      "file": "extracted_images/page_178_img_03.png"
+    },
+    {
+      "id": "IMG_p180_001",
+      "file": "extracted_images/page_180_img_01.png"
+    },
+    {
+      "id": "IMG_p180_002",
+      "file": "extracted_images/page_180_img_02.png"
+    },
+    {
+      "id": "IMG_p181_001",
+      "file": "extracted_images/page_181_img_01.png"
+    },
+    {
+      "id": "IMG_p182_001",
+      "file": "extracted_images/page_182_img_01.png"
+    },
+    {
+      "id": "IMG_p183_001",
+      "file": "extracted_images/page_183_img_01.png"
+    },
+    {
+      "id": "IMG_p183_002",
+      "file": "extracted_images/page_183_img_02.png"
+    },
+    {
+      "id": "IMG_p184_001",
+      "file": "extracted_images/page_184_img_01.png"
+    },
+    {
+      "id": "IMG_p185_001",
+      "file": "extracted_images/page_185_img_01.png"
+    },
+    {
+      "id": "IMG_p186_001",
+      "file": "extracted_images/page_186_img_01.png"
+    },
+    {
+      "id": "IMG_p186_002",
+      "file": "extracted_images/page_186_img_02.png"
+    },
+    {
+      "id": "IMG_p191_001",
+      "file": "extracted_images/page_191_img_01.png"
+    },
+    {
+      "id": "IMG_p191_002",
+      "file": "extracted_images/page_191_img_02.png"
+    },
+    {
+      "id": "IMG_p191_003",
+      "file": "extracted_images/page_191_img_03.png"
+    },
+    {
+      "id": "IMG_p191_004",
+      "file": "extracted_images/page_191_img_04.png"
+    },
+    {
+      "id": "IMG_p191_005",
+      "file": "extracted_images/page_191_img_05.png"
+    },
+    {
+      "id": "IMG_p192_001",
+      "file": "extracted_images/page_192_img_01.png"
+    },
+    {
+      "id": "IMG_p193_001",
+      "file": "extracted_images/page_193_img_01.png"
+    },
+    {
+      "id": "IMG_p193_002",
+      "file": "extracted_images/page_193_img_02.png"
+    },
+    {
+      "id": "IMG_p193_003",
+      "file": "extracted_images/page_193_img_03.png"
+    },
+    {
+      "id": "IMG_p194_001",
+      "file": "extracted_images/page_194_img_01.png"
+    },
+    {
+      "id": "IMG_p195_001",
+      "file": "extracted_images/page_195_img_01.png"
+    },
+    {
+      "id": "IMG_p195_002",
+      "file": "extracted_images/page_195_img_02.png"
+    },
+    {
+      "id": "IMG_p196_001",
+      "file": "extracted_images/page_196_img_01.png"
+    },
+    {
+      "id": "IMG_p196_002",
+      "file": "extracted_images/page_196_img_02.png"
+    },
+    {
+      "id": "IMG_p198_001",
+      "file": "extracted_images/page_198_img_01.png"
+    },
+    {
+      "id": "IMG_p198_002",
+      "file": "extracted_images/page_198_img_02.png"
+    },
+    {
+      "id": "IMG_p198_003",
+      "file": "extracted_images/page_198_img_03.png"
+    },
+    {
+      "id": "IMG_p199_001",
+      "file": "extracted_images/page_199_img_01.png"
+    },
+    {
+      "id": "IMG_p199_002",
+      "file": "extracted_images/page_199_img_02.png"
+    },
+    {
+      "id": "IMG_p199_003",
+      "file": "extracted_images/page_199_img_03.png"
+    },
+    {
+      "id": "IMG_p200_001",
+      "file": "extracted_images/page_200_img_01.png"
+    },
+    {
+      "id": "IMG_p201_001",
+      "file": "extracted_images/page_201_img_01.png"
+    },
+    {
+      "id": "IMG_p201_002",
+      "file": "extracted_images/page_201_img_02.png"
+    },
+    {
+      "id": "IMG_p201_003",
+      "file": "extracted_images/page_201_img_03.png"
+    },
+    {
+      "id": "IMG_p201_004",
+      "file": "extracted_images/page_201_img_04.png"
+    },
+    {
+      "id": "IMG_p201_005",
+      "file": "extracted_images/page_201_img_05.png"
+    },
+    {
+      "id": "IMG_p202_001",
+      "file": "extracted_images/page_202_img_01.png"
+    },
+    {
+      "id": "IMG_p202_002",
+      "file": "extracted_images/page_202_img_02.png"
+    },
+    {
+      "id": "IMG_p202_003",
+      "file": "extracted_images/page_202_img_03.png"
+    },
+    {
+      "id": "IMG_p203_001",
+      "file": "extracted_images/page_203_img_01.png"
+    },
+    {
+      "id": "IMG_p203_002",
+      "file": "extracted_images/page_203_img_02.png"
+    }
+  ],
+  "glyph_substitution_images": [
+    "IMG_p173_001",
+    "IMG_p174_001",
+    "IMG_p178_001",
+    "IMG_p196_001"
+  ],
+  "other_extracted_images": [
+    "IMG_p170_001",
+    "IMG_p171_001",
+    "IMG_p171_002",
+    "IMG_p172_001",
+    "IMG_p173_002",
+    "IMG_p173_003",
+    "IMG_p173_004",
+    "IMG_p173_005",
+    "IMG_p174_002",
+    "IMG_p174_003",
+    "IMG_p174_004",
+    "IMG_p174_005",
+    "IMG_p174_006",
+    "IMG_p174_007",
+    "IMG_p174_008",
+    "IMG_p174_009",
+    "IMG_p175_001",
+    "IMG_p176_001",
+    "IMG_p177_001",
+    "IMG_p177_002",
+    "IMG_p177_003",
+    "IMG_p177_004",
+    "IMG_p178_002",
+    "IMG_p178_003",
+    "IMG_p180_001",
+    "IMG_p180_002",
+    "IMG_p181_001",
+    "IMG_p182_001",
+    "IMG_p183_001",
+    "IMG_p183_002",
+    "IMG_p184_001",
+    "IMG_p185_001",
+    "IMG_p186_001",
+    "IMG_p186_002",
+    "IMG_p191_001",
+    "IMG_p191_002",
+    "IMG_p191_003",
+    "IMG_p191_004",
+    "IMG_p191_005",
+    "IMG_p192_001",
+    "IMG_p193_001",
+    "IMG_p193_002",
+    "IMG_p193_003",
+    "IMG_p194_001",
+    "IMG_p195_001",
+    "IMG_p195_002",
+    "IMG_p196_002",
+    "IMG_p198_001",
+    "IMG_p198_002",
+    "IMG_p198_003",
+    "IMG_p199_001",
+    "IMG_p199_002",
+    "IMG_p199_003",
+    "IMG_p200_001",
+    "IMG_p201_001",
+    "IMG_p201_002",
+    "IMG_p201_003",
+    "IMG_p201_004",
+    "IMG_p201_005",
+    "IMG_p202_001",
+    "IMG_p202_002",
+    "IMG_p202_003",
+    "IMG_p203_001",
+    "IMG_p203_002"
+  ]
+}

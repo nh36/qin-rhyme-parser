@@ -1,0 +1,9 @@
+/Users/nathanhill/Qin rhyme parser/main.py:585: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  ts = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
+Wrote rhyme groups to outputs/rhyme_output.20260127T185540Z.txt
+Wrote annotation table to outputs/rhyme_annotations.20260127T185540Z.csv
+Wrote line export to outputs/poem_lines.20260127T185540Z.csv
+Warnings present: wrote 138 issues to outputs/warnings.20260127T185540Z.json
+Wrote metadata and README
+Wrote summary to outputs/summary.20260127T185540Z.json
+Warning: 62 unreferenced extracted images: ['IMG_p170_001', 'IMG_p171_001', 'IMG_p171_002', 'IMG_p172_001', 'IMG_p173_002', 'IMG_p173_003', 'IMG_p173_004', 'IMG_p173_005', 'IMG_p174_002', 'IMG_p174_003']

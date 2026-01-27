@@ -1,0 +1,12 @@
+{
+  "dc:title": "hudie2023_qin_rhymes - CLDF exports",
+  "dc:description": "Conservative extraction of line-level text and table-level rhyme annotations from hudie2023_qin_rhymes.pdf. Tables only; prose and non-table material are not reconstructed.",
+  "dc:license": "CC-BY-4.0",
+  "files": [
+    "rhyme_annotations.20260127T190258Z.csv",
+    "poem_lines.20260127T190258Z.csv",
+    "rhyme_output.20260127T190258Z.txt",
+    "warnings.20260127T190258Z.json"
+  ],
+  "note": "This dataset contains conservative extractions. Most poems are not present and are not reconstructed."
+}

@@ -1,0 +1,26 @@
+{
+    "title": "CJP Rhyme Data",
+    "creators": [
+        {
+            "name": "Foster, Christopher J."
+        }
+    ],
+    "description": "<p>Cite the data as:</p>\n\n<blockquote>\n<p>Foster, Christopher J. (2020): CJP Rhyme Data. Version 1.0. URL: https://github.com/digling/cjp-data/. Jena: Max Planck Institute for the Science of Human History.</p>\n</blockquote>",
+    "access_right": "open",
+    "keywords": [
+        "linguistics",
+        "bibliography"
+    ],
+    "license": {
+        "id": "CC-BY-4.0"
+    },
+    "upload_type": "software",
+    "communities": [
+        {
+            "identifier": "dighl"
+        },
+        {
+            "identifier": "calc"
+        }
+    ]
+}

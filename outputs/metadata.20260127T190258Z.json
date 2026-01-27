@@ -1,0 +1,12 @@
+{
+  "title": "hudie2023_qin_rhymes - CLDF exports",
+  "description": "Conservative extraction of line-level text and table-level rhyme annotations from hudie2023_qin_rhymes.pdf. Tables only; prose and non-table material are not reconstructed.",
+  "license": "CC-BY-4.0",
+  "generated": "20260127T190258Z",
+  "files": [
+    "rhyme_annotations.20260127T190258Z.csv",
+    "poem_lines.20260127T190258Z.csv",
+    "rhyme_output.20260127T190258Z.txt",
+    "warnings.20260127T190258Z.json"
+  ]
+}

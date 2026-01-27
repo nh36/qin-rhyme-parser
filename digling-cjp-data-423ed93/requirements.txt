@@ -1,0 +1,8 @@
+clldutils
+csvw
+lingpy
+tabulate
+pyclts
+cldfcatalog
+segments
+pyconcepticon
