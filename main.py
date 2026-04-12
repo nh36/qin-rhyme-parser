@@ -16,6 +16,292 @@ import sys
 
 # ---- helpers --------------------------------------------------------------
 
+# Image placeholder constants and helpers
+def make_img_token(image_id: str) -> str:
+    """Create a canonical image placeholder token."""
+    return f"⟦IMG:{image_id}⟧"
+
+def is_img_token(tok: str) -> bool:
+    """Check if a token is an image placeholder."""
+    if not tok:
+        return False
+    return tok.startswith("⟦IMG:") and tok.endswith("⟧")
+
+def extract_image_id(tok: str) -> str:
+    """Extract image ID from a placeholder token."""
+    if is_img_token(tok):
+        return tok[5:-1]  # Remove ⟦IMG: and ⟧
+    return None
+
+def process_rhyme_char_cell_with_images(cell_text, image_refs):
+    """Process a rhyme character cell that may have missing characters.
+    Detects "、 、" patterns (delimiter-space-delimiter) and inserts image placeholders.
+    Also detects leading "、 " which indicates missing first character.
+    Returns (processed_text, image_ids_used).
+    """
+    if not cell_text or not image_refs:
+        return cell_text, []
+    
+    # Check for leading "、 " pattern - missing first character
+    if cell_text.startswith('、 '):
+        img_iter = iter(image_refs)
+        try:
+            img_id = next(img_iter)
+            placeholder = make_img_token(img_id)
+            cell_text = placeholder + cell_text
+            image_ids_used = [img_id]
+        except StopIteration:
+            image_ids_used = []
+    else:
+        image_ids_used = []
+    
+    # Now check for "、 、" patterns (consecutive delimiters with space)
+    # This is a simple heuristic - look for delimiter followed by space and delimiter
+    parts = cell_text.split('、')
+    result_parts = []
+    img_iter = iter(image_refs[len(image_ids_used):])  # Continue from where we left off
+    
+    for i, part in enumerate(parts):
+        if i == 0:
+            # First part - already handled above
+            if part:
+                result_parts.append(part)
+            continue
+        
+        part_stripped = part.strip()
+        if not part_stripped:
+            # Empty part in middle - missing character
+            try:
+                img_id = next(img_iter)
+            except StopIteration:
+                img_id = image_refs[-1] if image_refs else None
+            if img_id:
+                result_parts.append(make_img_token(img_id))
+                image_ids_used.append(img_id)
+        else:
+            result_parts.append(part_stripped)
+    
+    return '、'.join(result_parts), image_ids_used
+
+
+def get_line_length(text):
+    """
+    Get the content length of a line, excluding:
+    - Parenthetical glosses like （微）
+    - Slip IDs
+    - Footnote markers [1]
+    - Whitespace
+    
+    Returns: character count
+    """
+    # Remove parenthetical content
+    cleaned = re.sub(r'[（(][^）)]+[）)]', '', text)
+    # Remove slip IDs
+    cleaned = re.sub(r'\d{1,3}-\d{1,2}(?:背)?', '', cleaned)
+    # Remove footnote markers
+    cleaned = re.sub(r'\[\d+\]', '', cleaned)
+    # Remove whitespace
+    cleaned = re.sub(r'\s', '', cleaned)
+    # Count CJK characters and punctuation
+    return len(cleaned)
+
+
+def is_verse_like(text, context_lines=None):
+    """
+    Determine if a line is verse-like based on:
+    1. Line length (short, typically 4-10 characters)
+    2. Ends with verse punctuation (，。；)
+    3. Not a footnote or commentary
+    4. If context provided, similar length to nearby lines
+    
+    Returns: (is_verse, confidence_score)
+    """
+    if not text or not text.strip():
+        return False, 0.0
+    
+    text = text.strip()
+    
+    # Definitely not verse
+    if is_footnote_or_commentary(text):
+        return False, 0.0
+    
+    # Check for section markers
+    if text in ['【用韻情況】', '【註釋】', '【注释】']:
+        return False, 0.0
+    
+    length = get_line_length(text)
+    confidence = 0.0
+    
+    # Length heuristics
+    if 3 <= length <= 12:
+        confidence += 0.3
+    elif 13 <= length <= 20:
+        confidence += 0.1
+    else:
+        # Very long or very short - less likely verse
+        confidence -= 0.2
+    
+    # Ends with verse punctuation
+    if re.search(r'[，。；：][^，。；：]*$', text):
+        confidence += 0.3
+    
+    # Has CJK characters
+    if re.search(r'[\u4E00-\u9FFF]', text):
+        confidence += 0.2
+    else:
+        return False, 0.0
+    
+    # Compare with context lines if provided
+    if context_lines:
+        lengths = [get_line_length(line) for line in context_lines if line]
+        if lengths:
+            avg_length = sum(lengths) / len(lengths)
+            # Similar length to context (within 3 characters)
+            if abs(length - avg_length) <= 3:
+                confidence += 0.3
+            # Check for consistent pattern (all within small range)
+            if max(lengths) - min(lengths) <= 4:
+                confidence += 0.2
+    
+    is_verse = confidence > 0.4
+    return is_verse, confidence
+
+
+def is_footnote_or_commentary(text):
+    """
+    Detect footnote markers and scholarly commentary that shouldn't be treated as poetry.
+    
+    Returns: True if text is a footnote/commentary, False if it's likely a verse line.
+    """
+    if not text or not text.strip():
+        return True
+    
+    text = text.strip()
+    
+    # Chinese circled numerals (footnote markers): ①②③④⑤⑥⑦⑧⑨⑩
+    if re.match(r'^[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳]', text):
+        return True
+    
+    # Bibliography references with author names and citations
+    if re.search(r'[:：]《[^》]+》[,，].*?(年|頁)', text):
+        return True
+    
+    # Rhyme info lines (these are metadata, not verse)
+    # Pattern: starts with or contains rhyme category names followed by 部 and then ——
+    # Examples: "魚月元部合韻——固、察", "陽部——方、章", "職蒸部通韻——塞"
+    # Rhyme categories: 魚 月 元 陽 之 幽 微 職 蒸 真 侵 文 物 緝 質 耕 脂 宵 侯 東 冬 歌 鐸 藥 屋 覺 錫
+    if re.search(r'[魚月元陽之幽微職蒸真侵文物緝質耕脂宵侯東冬歌鐸藥屋覺錫]+部[獨合通]?韻?[——-]', text):
+        return True
+    
+    # Lines that are section titles/headers
+    if re.search(r'韻讀$', text):  # e.g., "睡虎地秦墓竹簡韻讀"
+        return True
+    
+    # Chapter/section header patterns
+    if re.match(r'^第[一二三四五六七八九十]+章', text):
+        return True
+    
+    # Scholarly commentary phrases
+    commentary_patterns = [
+        r'^今按[：:]',
+        r'^整理者[：:]',
+        r'^本段文字',
+        r'簡\d+-\d+作[：:]',  # References to other slip versions
+        r'嶽麓秦簡.*?作',
+        r'睡虎地秦簡.*?作',
+        r'從押韻',
+        r'用韻.*?需要',
+        r'韻式.*?不同',
+        r'^關於本段',  # "Regarding this section..."
+        r'^關於本韻段',
+        r'^具體可參看',  # "For details, see..."
+        r'^待考[。，]?$',  # "Pending investigation" - often standalone
+        r'^筆者',  # "This author..."
+        r'^暫無法',  # "Temporarily unable to..."
+        r'^暫且存疑',  # "Temporarily uncertain..."
+        r'^值得注意',  # "Worth noting..."
+        r'韻語.*?少見',  # Meta-commentary about rhyme usage, e.g., "擇術中韻語少見"
+        r'^.*?中韻語',  # Commentary about rhyme words in a text
+        r'^此段',  # "This section..."
+    ]
+    
+    for pattern in commentary_patterns:
+        if re.search(pattern, text):
+            return True
+    
+    # Lines that are mostly bibliography (author: title, publisher, page)
+    # Example: "劉信芳:《〈天水放馬灘秦簡綜述〉質疑》,《文物》1990年第9期"
+    if re.search(r'^[^，。]{2,10}[：:]《.+》.*?\d+年', text):
+        return True
+    
+    # Bibliography with URLs
+    if re.search(r'http[s]?://', text):
+        return True
+    
+    # Citation format: Name:《Title》
+    if re.search(r'^[^，。]{2,10}[：:]《[^》]+》', text):
+        return True
+    
+    # Date patterns (e.g., "1年4月9日", "2010年")
+    if re.search(r'^\d+年\d*月?\d*日?[。，]?$', text):
+        return True
+    
+    # Long commentary-style lines (scholarly discussion, not verse)
+    # If line is very long and contains phrases like "認爲", "觀點", "意見"
+    if len(text) > 50 and re.search(r'(認爲|觀點|意見|看作|筆者|因而|故而|今按|然而|考其|由此)', text):
+        return True
+    
+    return False
+
+def filter_rhyme_chars(tokens):
+    """Filter a list of tokens to keep only valid rhyme characters and image placeholders.
+    Removes line numbers, metadata, parenthetical content, sentence punctuation, counting words.
+    Preserves image placeholder tokens.
+    """
+    filtered = []
+    for tok in tokens:
+        # Keep image placeholders
+        if is_img_token(tok):
+            filtered.append(tok)
+            continue
+        
+        # Skip empty
+        if not tok or not tok.strip():
+            continue
+        
+        tok_clean = tok.strip()
+        
+        # Skip line numbers and metadata patterns
+        if re.match(r'^\d+$', tok_clean):  # Pure numbers
+            continue
+        if re.match(r'^\d+\s*[（(]', tok_clean):  # "01（" pattern
+            continue
+        if re.match(r'^[（(]\d+', tok_clean):  # "（4" pattern
+            continue
+        
+        # Skip parenthetical content (tone markers, etc)
+        if tok_clean.startswith('（') and tok_clean.endswith('）'):
+            continue
+        if tok_clean.startswith('(') and tok_clean.endswith(')'):
+            continue
+        
+        # Skip sentence punctuation
+        if tok_clean in ('。', '，', '、', '：', '；', '！', '？', '…'):
+            continue
+        
+        # Skip tone/rhyme markers
+        if tok_clean in ('平', '上', '去', '入', '—', '–', '-', '部'):
+            continue
+        
+        # Skip counting words
+        if tok_clean in ('一曰', '二曰', '三曰', '四曰', '五曰', '六曰', '七曰', '八曰', '九曰', '十曰'):
+            continue
+        
+        # Otherwise keep it
+        filtered.append(tok_clean)
+    
+    return filtered
+
 def normalize_text(s):
     if s is None:
         return ''
@@ -96,7 +382,7 @@ def row_needs_images(cells):
 
 
 def replace_images_in_cells(cells, image_refs):
-    """Replace non-allowed glyphs in cells with placeholders [IMG:ID].
+    """Replace non-allowed glyphs in cells with placeholders ⟦IMG:ID⟧.
     Returns (new_cells, cell_image_map) where cell_image_map is list-of-lists of image ids used in each cell.
     This consumes image_refs in order for a page; if exhausted, last id is re-used.
     """
@@ -121,7 +407,7 @@ def replace_images_in_cells(cells, image_refs):
                         img_id = next(img_iter)
                     except StopIteration:
                         img_id = image_refs[-1]
-                    placeholder = f"[IMG:{img_id}]"
+                    placeholder = make_img_token(img_id)
                     out.append(placeholder)
                     used.append(img_id)
             new_cells[idx] = ''.join(out)
@@ -197,6 +483,9 @@ def parse_qin_rhymes(pdf_path):
                     # forward-fill group id from current group when missing
                     effective_group = group_id if group_id is not None else (current['RhymeSegment'] if current else None)
 
+                    # Apply image placeholder replacement to cells before processing
+                    cells_with_img, cell_image_map = replace_images_in_cells(cells, img_ids if bool(page_images) else [])
+
                     row_text = ' '.join([normalize_text(c) for c in cells[1:] if normalize_text(c)])
 
                     group_forward_filled = False
@@ -225,15 +514,43 @@ def parse_qin_rhymes(pdf_path):
                     if group_id is not None:
                         # flush previous
                         if current:
-                            rhyme_groups.append({
-                                'RhymeSegment': current['RhymeSegment'],
-                                'Characters': '、'.join(current['Characters']),
-                                'OC_RhymeGroup': '、'.join(current['OC_RhymeGroup']),
-                                'Tones': ' '.join(current['Tones']),
-                                'Source': current['Source'],
-                                'Page': current['Page'],
-                                'TableID': current.get('TableID','')
-                            })
+                            # Collect image IDs from Characters
+                            image_ids_in_chars = []
+                            for ch in current['Characters']:
+                                if is_img_token(ch):
+                                    img_id = extract_image_id(ch)
+                                    if img_id and img_id not in image_ids_in_chars:
+                                        image_ids_in_chars.append(img_id)
+                            
+                            # Only include in rhyme_output if Characters field has content
+                            # AND doesn't look like a complete poem
+                            if current['Characters']:
+                                chars_text = '、'.join(current['Characters'])
+                                
+                                # Exclude if it looks like a poem (not just rhyme characters):
+                                # - Contains sentence-ending punctuation
+                                # - Has multiple "lines" indicated by repetitive patterns like 一曰、二曰、三曰
+                                # - Contains long runs of text without enumeration delimiters
+                                is_poem = False
+                                
+                                if re.search(r'[。．！？…]', chars_text):
+                                    is_poem = True
+                                elif chars_text.count('一曰') >= 2 or chars_text.count('二曰') >= 2:
+                                    is_poem = True
+                                elif len(chars_text) > 200:  # Very long suggests concatenated poem lines
+                                    is_poem = True
+                                
+                                if not is_poem:
+                                    rhyme_groups.append({
+                                        'RhymeSegment': current['RhymeSegment'],
+                                        'Characters': chars_text,
+                                        'OC_RhymeGroup': '、'.join(current['OC_RhymeGroup']),
+                                        'Tones': ' '.join(current['Tones']),
+                                        'Source': current['Source'],
+                                        'Page': current['Page'],
+                                        'TableID': current.get('TableID',''),
+                                        'image_refs': '|'.join(image_ids_in_chars)
+                                    })
                         # start new
                         current = {
                             'RhymeSegment': group_id,
@@ -245,7 +562,8 @@ def parse_qin_rhymes(pdf_path):
                             'TableID': table_id
                         }
                         # parse cells into group (preserve duplicates, preserve ordering)
-                        for c in cells[1:]:
+                        # Use cells_with_img which have image placeholders
+                        for c in cells_with_img[1:]:
                             if not c:
                                 continue
                             text = normalize_text(c)
@@ -264,16 +582,29 @@ def parse_qin_rhymes(pdf_path):
                                 parts = [p.strip() for p in re.split(r'[、,，;；\s]+', text) if p.strip()]
                                 append_preserve(current['OC_RhymeGroup'], parts)
                                 continue
-                            if re.search(r'[—–\-]|平|上|去|入', text):
+                            # Tone cell detection: must be PRIMARILY tone markers
+                            tone_chars = len(re.findall(r'[—–\-平上去入]', text))
+                            total_chars = len(re.sub(r'\s', '', text))
+                            is_tone_cell = (tone_chars > 0 and tone_chars / max(total_chars, 1) > 0.5)
+                            
+                            if is_tone_cell:
                                 tparts = split_tones(text)
                                 append_preserve(current['Tones'], tparts)
                                 continue
                             # otherwise characters
-                            append_preserve(current['Characters'], split_chars(text))
+                            # If row has images, check for missing characters and insert placeholders
+                            if img_ids and ('、' in text or ' ' in text):
+                                processed_text, _ = process_rhyme_char_cell_with_images(text, img_ids)
+                                tokens = split_chars(processed_text)
+                            else:
+                                tokens = split_chars(text)
+                            # Filter to keep only valid rhyme characters and image placeholders
+                            filtered_tokens = filter_rhyme_chars(tokens)
+                            append_preserve(current['Characters'], filtered_tokens)
                     else:
                         # continuation row: attach to current group deterministically if present
                         if current:
-                            for c in cells[1:]:
+                            for c in cells_with_img[1:]:
                                 if not c:
                                     continue
                                 text = normalize_text(c)
@@ -291,25 +622,62 @@ def parse_qin_rhymes(pdf_path):
                                     parts = [p.strip() for p in re.split(r'[、,，;；\s]+', text) if p.strip()]
                                     append_preserve(current['OC_RhymeGroup'], parts)
                                     continue
-                                if re.search(r'[—–\-]|平|上|去|入', text):
+                                # Tone cell detection: must be PRIMARILY tone markers
+                                tone_chars = len(re.findall(r'[—–\-平上去入]', text))
+                                total_chars = len(re.sub(r'\s', '', text))
+                                is_tone_cell = (tone_chars > 0 and tone_chars / max(total_chars, 1) > 0.5)
+                                
+                                if is_tone_cell:
                                     tparts = split_tones(text)
                                     append_preserve(current['Tones'], tparts)
                                     continue
-                                append_preserve(current['Characters'], split_chars(text))
+                                # Check for character cells with missing characters
+                                if img_ids and ('、' in text or ' ' in text):
+                                    processed_text, _ = process_rhyme_char_cell_with_images(text, img_ids)
+                                    tokens = split_chars(processed_text)
+                                else:
+                                    tokens = split_chars(text)
+                                # Filter to keep only valid rhyme characters and image placeholders
+                                filtered_tokens = filter_rhyme_chars(tokens)
+                                append_preserve(current['Characters'], filtered_tokens)
                         else:
                             # orphan continuation row -> keep record but do not merge
                             pass
         # after pages: flush current group
         if current:
-            rhyme_groups.append({
-                'RhymeSegment': current['RhymeSegment'],
-                'Characters': '、'.join(current['Characters']),
-                'OC_RhymeGroup': '、'.join(current['OC_RhymeGroup']),
-                'Tones': ' '.join(current['Tones']),
-                'Source': current['Source'],
-                'Page': current['Page'],
-                'TableID': current.get('TableID','')
-            })
+            # Collect image IDs from Characters
+            image_ids_in_chars = []
+            for ch in current['Characters']:
+                if is_img_token(ch):
+                    img_id = extract_image_id(ch)
+                    if img_id and img_id not in image_ids_in_chars:
+                        image_ids_in_chars.append(img_id)
+            
+            # Only include if Characters field has content and doesn't look like a poem
+            if current['Characters']:
+                chars_text = '、'.join(current['Characters'])
+                
+                # Exclude if it looks like a poem (not just rhyme characters)
+                is_poem = False
+                
+                if re.search(r'[。．！？…]', chars_text):
+                    is_poem = True
+                elif chars_text.count('一曰') >= 2 or chars_text.count('二曰') >= 2:
+                    is_poem = True
+                elif len(chars_text) > 200:  # Very long suggests concatenated poem lines
+                    is_poem = True
+                
+                if not is_poem:
+                    rhyme_groups.append({
+                        'RhymeSegment': current['RhymeSegment'],
+                        'Characters': chars_text,
+                        'OC_RhymeGroup': '、'.join(current['OC_RhymeGroup']),
+                        'Tones': ' '.join(current['Tones']),
+                        'Source': current['Source'],
+                        'Page': current['Page'],
+                        'TableID': current.get('TableID',''),
+                        'image_refs': '|'.join(image_ids_in_chars)
+                    })
 
     return rhyme_groups, row_records
 
@@ -397,7 +765,13 @@ def make_annotation_rows(rows):
                 parts = [p.strip() for p in re.split(r'[、,，;；\s]+', c) if p.strip()]
                 oc_groups.extend(parts)
                 continue
-            if re.search(r'[—–\-]|平|上|去|入', c):
+            # Tone cell detection: must be PRIMARILY tone markers, not just contain one
+            # Count tone-like content vs total content
+            tone_chars = len(re.findall(r'[—–\-平上去入]', c))
+            total_chars = len(re.sub(r'\s', '', c))  # Exclude whitespace
+            is_tone_cell = (tone_chars > 0 and tone_chars / max(total_chars, 1) > 0.5)
+            
+            if is_tone_cell:
                 tone_cells.append(c)
                 continue
             if is_probable_rhyz_cell(c):
@@ -437,7 +811,7 @@ def make_annotation_rows(rows):
         header_in_tokens = any(any(ht in t for ht in HEADER_TOKENS) for t in rhyme_tokens)
         if header_in_raw or header_in_tokens:
             warnings.append({'rowid': rowid, 'reason': 'header_token_in_rhyme', 'raw': rhyme_raw_after, 'rhyme_tokens': rhyme_tokens})
-            summary['unresolved_rows'].append({'RowID': rowid, 'TableID': table_id, 'page': page, 'rhyme_raw': rhyme_raw_after, 'rhyme_tokens': rhyme_tokens})
+            summary['unresolved_rows'].append({'RowID': rowid, 'TableID': table_id, 'page': page, 'Characters': rhyme_raw_after, 'rhyme_tokens': rhyme_tokens})
             # do not emit this row into annotation; treat as unresolved
             continue
 
@@ -513,13 +887,13 @@ def make_annotation_rows(rows):
                 'page': page,
                 'row_in_source': row_in_page,
                 'raw_text': raw_text,
-                'rhyme_raw': rhyme_raw_after,
+                'Characters': rhyme_raw_after,
                 'OC_RhymeGroup': oc_rhyme,
-                'tones_raw': tones_raw,
+                'Tones': tones_raw,
                 'rhyme_tokens': ' | '.join(rhyme_tokens),
                 'tone_tokens': ' | '.join(tone_tokens),
                 'rhyme_numbers': ' '.join(re.findall(r'\b(\d+)\b', raw_text)),
-                'source': source,
+                'Source': source,
                 'alignment_issue': '1' if alignment_issue else '',
                 'notes': json.dumps(notes_obj, ensure_ascii=False),
                 'image_refs': ','.join(image_refs)
@@ -531,46 +905,1344 @@ def make_annotation_rows(rows):
 
 
 def make_line_rows(rows):
+    """Extract poem lines in long format: one CSV row per line.
+    Parses line text, rhyme groups, and preserves image placeholders.
+    """
+    # First pass: collect all unique poems (Table + RhymeSegment combinations) and assign sequential IDs
+    poems_seen = {}  # (table_id, rhyme_segment) -> sequential poem number
+    poem_counter = 1
+    
+    for r in rows:
+        table_id = r.get('table_id','')
+        rhyme_segment = r.get('group_id', '')
+        text = r.get('row_text','')
+        
+        if not text:
+            continue
+        
+        # Apply same filters as before
+        if '部' in text:
+            continue
+        if re.search(r'[—–\-]', text) and re.search(r'[平上去入]', text):
+            continue
+        if text.count('、') >= 3:
+            continue
+        if not re.search(r'[。．！？…]', text):
+            continue
+        
+        total_cjk = len(re.findall(r'[\u4E00-\u9FFF]', text))
+        if total_cjk < 6:
+            continue
+        
+        # Register this poem if not seen
+        poem_key = (table_id, rhyme_segment)
+        if poem_key not in poems_seen:
+            poems_seen[poem_key] = poem_counter
+            poem_counter += 1
+    
+    # Second pass: actually extract lines
     line_rows = []
-    per_page_counts = defaultdict(int)
+    
     for r in rows:
         page = r.get('page')
-        per_page_counts[page] += 1
-        row_in_page = per_page_counts[page]
         table_id = r.get('table_id','')
-        rowid = f'ROW_{table_id}_p{page:03d}_r{r.get("row_index",0):04d}'
         text = r.get('row_text','')
         if not text:
             continue
-        total_cjk = len(re.findall(r'[\u4E00-\u9FFF]', text))
-        if not (re.search(r'[。．！？…：；，,;]', text) or total_cjk >= 6):
+        
+        # Filter 1: Exclude rhyme word lists
+        if '部' in text:
             continue
-        row_type = 'text'
-        if len(re.findall(r'《[^》]+》', text)) >= 2:
-            row_type = 'heading'
-        sources = []
-        for c in r.get('cells', []):
-            if isinstance(c, str) and '《' in c:
-                sources.extend(re.findall(r'《[^》]+》', c))
-        source = ' '.join(sources) if sources else r.get('source','')
-        rhymeids = ' '.join(re.findall(r'\b(\d+)\b', text))
+        if re.search(r'[—–\-]', text) and re.search(r'[平上去入]', text):
+            continue
+        if text.count('、') >= 3:
+            continue
+        
+        # Filter 2: Require sentence-ending punctuation
+        if not re.search(r'[。．！？…]', text):
+            continue
+        
+        # Filter 3: Minimum length
+        total_cjk = len(re.findall(r'[\u4E00-\u9FFF]', text))
+        if total_cjk < 6:
+            continue
+        
+        # Extract source from row (already extracted during parsing)
+        source = r.get('source', '')
+        
         needs_images = row_needs_images(r.get('cells', [])) and r.get('has_images', False)
         image_refs = r.get('image_refs', []) if needs_images else []
-        notes_obj = {'cells': r.get('cells', []), 'has_images': needs_images, 'image_refs': image_refs}
-        line_rows.append({
-            'RowID': rowid,
-            'TableID': table_id,
-            'RhymeSegment': r.get('group_id',''),
-            'page': page,
-            'row_in_source': row_in_page,
-            'text': text,
-            'row_type': row_type,
-            'rhymeids': rhymeids,
-            'source': source,
-            'notes': json.dumps(notes_obj, ensure_ascii=False),
-            'image_refs': ','.join(image_refs)
-        })
+        
+        # Apply image replacement to cells if needed
+        cells = r.get('cells', [])
+        if image_refs:
+            cells, _ = replace_images_in_cells(cells, image_refs)
+        
+        # Find the cell with the actual poem lines
+        # Priority: cell with image placeholders > longest cell > first substantial cell
+        poem_cell = None
+        poem_cell_idx = -1
+        
+        # First pass: look for cells with image placeholders
+        if image_refs:
+            for idx, c in enumerate(cells[1:], start=1):
+                if c and '⟦IMG:' in c:
+                    poem_cell = c
+                    poem_cell_idx = idx
+                    break
+        
+        # Second pass: if no image placeholders found, take the longest substantial cell
+        if not poem_cell:
+            max_len = 0
+            for idx, c in enumerate(cells[1:], start=1):
+                if c and len(c.strip()) > max_len:
+                    poem_cell = c
+                    poem_cell_idx = idx
+                    max_len = len(c.strip())
+        
+        if not poem_cell:
+            continue
+        
+        # Split into individual lines
+        raw_lines = [line.strip() for line in poem_cell.split('\n') if line.strip()]
+        
+        # Get poem ID (sequential number assigned in first pass)
+        rhyme_segment = r.get('group_id', '')
+        poem_key = (table_id, rhyme_segment)
+        poem_num = poems_seen.get(poem_key, 0)
+        poem_id = f"POEM_{poem_num:03d}"
+        
+        # Track rhyme groups encountered for rhyme ID assignment
+        rhyme_group_map = {}  # Maps rhyme group to rhyme ID
+        next_rhyme_id = 1
+        
+        # Parse each line
+        line_order = 1
+        for raw_line in raw_lines:
+            # Parse format: "line_text,line_number （rhyme_group）" or just "line_text （rhyme_group）"
+            
+            # Extract rhyme group marker if present: （XXX）
+            rhyme_group = ''
+            rhyme_group_match = re.search(r'[（(]([^）)]+)[）)]', raw_line)
+            if rhyme_group_match:
+                rhyme_group = rhyme_group_match.group(1).strip()
+                # Clean numbers and extra spaces from rhyme group
+                rhyme_group = re.sub(r'\d+\s*', '', rhyme_group).strip()
+            
+            # Remove rhyme group marker from line text
+            line_text = re.sub(r'\s*[（(][^）)]+[）)]\s*', '', raw_line)
+            
+            # Remove line numbers like "01-3" or "59-4" from line text
+            # Try multiple patterns
+            line_text = re.sub(r',\s*\d+-\d+\s*', '', line_text)  # ,01-3
+            line_text = re.sub(r'\s+\d+-\d+\s*', ' ', line_text)  # space 01-3
+            line_text = re.sub(r'\d+-\d+', '', line_text)      # 01-3 anywhere
+            
+            # Also remove standalone numbers like "024", "056" (but preserve image placeholders)
+            # First mark image placeholders to protect them
+            protected_imgs = []
+            for match in re.finditer(r'⟦IMG:[^⟧]+⟧', line_text):
+                protected_imgs.append(match.group())
+            
+            # Replace with temporary markers
+            for i, img in enumerate(protected_imgs):
+                line_text = line_text.replace(img, f'<<PROTECTED_{i}>>', 1)
+            
+            # Now remove numbers
+            line_text = re.sub(r',\s*\d+', '', line_text)  # ,024
+            line_text = re.sub(r'\d+\s*$', '', line_text)  # trailing 024
+            line_text = re.sub(r'[。．]\s*\d+', '。', line_text)  # 。024
+            
+            # Restore protected images
+            for i, img in enumerate(protected_imgs):
+                line_text = line_text.replace(f'<<PROTECTED_{i}>>', img)
+            
+            # Clean up extra punctuation and whitespace
+            line_text = line_text.strip().strip(',，。；：')
+            
+            # Skip if this is just a rhyme group marker with no actual line content
+            if not line_text or len(line_text) < 2:
+                continue
+            
+            # Skip if this looks like it's just metadata
+            if line_text.startswith('《') or re.match(r'^\d+$', line_text):
+                continue
+            
+            # Assign rhyme ID based on rhyme group
+            rhyme_id = ''
+            if rhyme_group:
+                if rhyme_group not in rhyme_group_map:
+                    rhyme_group_map[rhyme_group] = next_rhyme_id
+                    next_rhyme_id += 1
+                rhyme_id = str(rhyme_group_map[rhyme_group])
+            
+            line_rows.append({
+                'POEM': poem_id,
+                'LINE_ORDER': line_order,
+                'LINE': line_text,
+                'RHYME_GROUP': rhyme_group,
+                'RHYME_ID': rhyme_id,
+                'SOURCE': source,
+                'PAGE': str(page) if page else '',
+                'TABLE_ID': table_id,
+                'RHYME_SEGMENT': str(rhyme_segment) if rhyme_segment else ''
+            })
+            
+            line_order += 1
+    
     return line_rows
+
+
+def split_verse_lines_by_slip_id(text):
+    """
+    Split a text chunk into multiple verse lines if it contains slip IDs.
+    
+    Handles TWO formats:
+    1. XX-Y format: "01-1", "47-2", "1-2背" (used in 睡虎地, 嶽麓書院, 周家臺)
+    2. Simple numbers: "351", "252", "41" (used in 放馬灘, 北大)
+    
+    Rule: Each verse line MUST contain exactly ONE slip ID at the end.
+    If text contains multiple slip IDs, split at each boundary.
+    
+    Returns: List of (line_text, slip_id) tuples
+    """
+    # --- Pattern 1: XX-Y format (e.g., 01-1, 47-2, 1-2背) ---
+    SLIP_ID_PATTERN = re.compile(
+        r'(?P<slip>\d{1,3}-\d{1,2}(?:背)?)(?P<fn>\[\d+\])?(?=[\s，。；：\u4E00-\u9FFF]|$)'
+    )
+    
+    # Hard rejection: if followed by 頁, 年, % (false positives like "110-111頁")
+    REJECT_PATTERN = re.compile(r'\d{1,3}-\d{1,2}[頁年%]')
+    
+    if REJECT_PATTERN.search(text):
+        return []
+    
+    # Try XX-Y format first
+    matches = list(SLIP_ID_PATTERN.finditer(text))
+    
+    if matches:
+        # Found XX-Y slip IDs
+        if len(matches) == 1:
+            match = matches[0]
+            line_text = text[:match.start()].strip()
+            slip_id = match.group('slip')
+            return [(line_text, slip_id)]
+        
+        # Multiple slip IDs - split into multiple verse lines
+        lines = []
+        for i, match in enumerate(matches):
+            slip_id = match.group('slip')
+            
+            if i == 0:
+                line_text = text[:match.start()].strip()
+            else:
+                prev_end = matches[i-1].end()
+                line_text = text[prev_end:match.start()].strip()
+            
+            line_text = line_text.lstrip('，。；：、 ')
+            
+            if line_text:
+                lines.append((line_text, slip_id))
+        
+        return lines
+    
+    # --- Pattern 2: Simple numbers at end of line (e.g., 351, 252, 41) ---
+    # Must follow CJK text or punctuation, be 2-3 digits, and be at line end or followed by punctuation
+    SIMPLE_NUM_PATTERN = re.compile(
+        r'(?P<slip>\d{2,3})(?P<fn>\[\d+\])?(?=[\s，。；：]|$)'
+    )
+    
+    # Skip lines that look like footnotes, bibliography, or commentary
+    skip_patterns = [
+        r'^\[\d+\]',           # Footnote lines [1] ...
+        r'^\d+年',             # Year references
+        r'頁[。，]',           # Page references
+        r'第\d+期',            # Journal issue numbers
+        r'簡\d+-\d+作',        # References to other slips
+        r'（\d{4}[年）]',      # Years in parentheses
+        r'^整理者',            # Editor commentary
+        r'^今按',              # Author commentary
+        r'^關於',              # "Regarding..." commentary
+        r'[①②③④⑤⑥⑦⑧⑨⑩]',  # Circled footnote markers
+        r'《[^》]+》[,，].*?http',  # Bibliography with URL
+        r'[:：]《[^》]+》',    # Citation format: Name:《Title》
+        r'復旦大學',           # Specific university names (bibliography)
+        r'出土文獻',           # Documentary source references
+        r'研究中心',           # Research center references
+    ]
+    
+    for pattern in skip_patterns:
+        if re.search(pattern, text):
+            return []
+    
+    # Look for simple numbers at end
+    # The line should have CJK content before the number
+    if not re.search(r'[\u4E00-\u9FFF]', text):
+        return []
+    
+    # Find numbers at or near end of line (may have punctuation after)
+    match = re.search(r'(.+?)(\d{2,3})(\[\d+\])?\s*[，。；：]?\s*$', text)
+    if match:
+        line_text = match.group(1).strip()
+        slip_id = match.group(2)
+        
+        # Line must have meaningful CJK content (at least 2 CJK chars)
+        cjk_count = len(re.findall(r'[\u4E00-\u9FFF]', line_text))
+        if cjk_count >= 2:
+            # Avoid matching years (e.g., "2010年" -> "2010")
+            if not re.search(r'\d{4}$', line_text):
+                return [(line_text.rstrip('，。；：、 '), slip_id)]
+    
+    return []
+
+
+def find_terminal_token(line_text):
+    """
+    Find the terminal (rhyme) token by scanning from end.
+    
+    Rule D: If line ends with X（Y）, tag after X, match using X or Y.
+    
+    Skip:
+    - Footnote markers like [5]
+    - Punctuation "，。；："
+    - Trailing parenthetical gloss "（…）" comes AFTER the base character
+    
+    Return: (token, gloss_char, insert_position)
+    """
+    # Remove trailing footnotes and punctuation
+    text = line_text
+    text = re.sub(r'\[\d+\]\s*$', '', text)  # Remove [5]
+    text = text.rstrip('，。；： \t')
+    
+    # Check for pattern X（Y） at end
+    # Match: last_char（gloss）
+    parenthetical_match = re.search(r'([\u4E00-\u9FFF⟦])（([^）]+)）\s*$', text)
+    
+    if parenthetical_match:
+        # Found X（Y）
+        base_char_or_img = parenthetical_match.group(1)
+        gloss_text = parenthetical_match.group(2)
+        
+        # Extract gloss character
+        gloss_char = None
+        if base_char_or_img.startswith('⟦'):
+            # It's an image placeholder like ⟦IMG:...⟧（Y）
+            # Need to extract the full image placeholder
+            img_match = re.search(r'(⟦IMG:[^⟧]+⟧)（([^）]+)）\s*$', text)
+            if img_match:
+                token = img_match.group(1)
+                gloss_text = img_match.group(2)
+                cjk_in_gloss = re.findall(r'[\u4E00-\u9FFF]', gloss_text)
+                if cjk_in_gloss:
+                    gloss_char = cjk_in_gloss[0]
+                # Insert position is after the image token, before （
+                insert_pos = img_match.start(1) + len(token)
+                return token, gloss_char, insert_pos
+        else:
+            # Regular character
+            token = base_char_or_img
+            cjk_in_gloss = re.findall(r'[\u4E00-\u9FFF]', gloss_text)
+            if cjk_in_gloss:
+                gloss_char = cjk_in_gloss[0]
+            # Insert position is after the base character
+            insert_pos = parenthetical_match.start(1) + 1
+            return token, gloss_char, insert_pos
+    
+    # No X（Y） pattern - find last token normally
+    # Remove any remaining parentheticals
+    text = re.sub(r'（[^）]+）\s*$', '', text)
+    
+    # Find last image token
+    img_match = re.search(r'(⟦IMG:[^⟧]+⟧)[^⟦]*$', text)
+    if img_match:
+        token = img_match.group(1)
+        insert_pos = img_match.end()
+        return token, None, insert_pos
+    
+    # Define common Classical Chinese particles
+    particles = '之也焉矣乎哉耶邪與歟'
+    
+    # Find all CJK characters
+    cjk_chars = list(re.finditer(r'[\u4E00-\u9FFF]', text))
+    if cjk_chars:
+        last_match = cjk_chars[-1]
+        token = last_match.group()
+        insert_pos = last_match.end()
+        
+        # If last character is a particle, try second-to-last
+        if token in particles and len(cjk_chars) >= 2:
+            second_last_match = cjk_chars[-2]
+            second_token = second_last_match.group()
+            # Return second-to-last as primary token, last as potential alternate
+            # Insert position is after the second-to-last character
+            return second_token, token, second_last_match.end()
+        
+        return token, None, insert_pos
+    
+    return None, None, len(text)
+
+
+def find_rhyme_set(token, gloss_char, rhyme_sets):
+    """
+    Find which rhyme set this token belongs to.
+    
+    Rule D: Try matching token first, then gloss_char.
+    """
+    if not rhyme_sets:
+        return None
+    
+    # Try exact token match first
+    for rset in rhyme_sets:
+        if token in rset['words']:
+            return rset
+    
+    # Try gloss character if available
+    if gloss_char:
+        for rset in rhyme_sets:
+            if gloss_char in rset['words']:
+                return rset
+    
+    return None
+
+
+def parse_rhyme_info(rhyme_info_raw):
+    """
+    Parse rhyme info into rhyme sets with IDs.
+    
+    Input: "職蒸部通韻——塞、力、能；真元部合韻——身、願。"
+    Output: [
+        {'id': 'a', 'label': '職蒸部通韻', 'words': {'塞', '力', '能'}},
+        {'id': 'b', 'label': '真元部合韻', 'words': {'身', '願'}},
+    ]
+    """
+    if not rhyme_info_raw:
+        return []
+    
+    rhyme_sets = []
+    set_ids = 'abcdefghijklmnopqrstuvwxyz'
+    set_idx = 0
+    
+    # Split on sentence delimiters
+    clauses = re.split(r'[；。]', rhyme_info_raw)
+    
+    for clause in clauses:
+        clause = clause.strip()
+        if not clause or '——' not in clause:
+            continue
+        
+        # Split into label and wordlist
+        parts = clause.split('——', 1)
+        if len(parts) != 2:
+            continue
+        
+        label = parts[0].strip()
+        wordlist = parts[1].strip()
+        
+        # Split wordlist on enumeration comma
+        words = set()
+        for word in re.split(r'、', wordlist):
+            word = word.strip()
+            # Keep only actual characters and image placeholders
+            if word and (re.search(r'[\u4E00-\u9FFF]', word) or '⟦IMG:' in word):
+                words.add(word)
+        
+        if words and set_idx < len(set_ids):
+            rhyme_sets.append({
+                'id': set_ids[set_idx],
+                'label': label,
+                'words': words
+            })
+            set_idx += 1
+    
+    return rhyme_sets
+
+
+def annotate_line_with_rhyme(line_text, rhyme_sets, slip_id='', include_category=True):
+    """
+    Annotate a line with rhyme set marker [a]/[b]/etc.
+    
+    If include_category=True (new default), uses Suzuki-style format: [a@陽部]
+    Otherwise uses simple format: [a]
+    
+    This function now handles BOTH terminal and non-terminal rhyme words.
+    For lines like "欲富大（太）甚，貧不可得", it will annotate both 甚 and 得
+    if both are rhyme words.
+    
+    Also handles gloss characters in parentheticals like ⟦IMG:X⟧（Y） where Y is the rhyme word.
+    
+    Returns: (annotated_text, rhyme_set_id, rhyme_word, rhyme_label, missed_tag_reason)
+    """
+    if not rhyme_sets:
+        return line_text, '', '', '', ''
+    
+    # Build a map of all rhyme words to their sets
+    word_to_set = {}
+    for rset in rhyme_sets:
+        for word in rset['words']:
+            if word not in word_to_set:  # First match wins
+                word_to_set[word] = rset
+    
+    # Find ALL occurrences of rhyme words in the line and annotate them
+    # Process from right to left to avoid index shifting
+    annotated = line_text
+    all_matches = []
+    
+    for word, rset in word_to_set.items():
+        # Skip image tokens for direct matching (handle via gloss)
+        if '⟦IMG:' in word:
+            continue
+        
+        # Find all occurrences of this word in the line
+        for match in re.finditer(re.escape(word), line_text):
+            pos = match.end()
+            # Check if next char is already a rhyme marker
+            if pos < len(line_text) and line_text[pos] == '[':
+                continue
+            
+            # Check if this is inside a parenthetical (gloss)
+            prefix = line_text[:match.start()]
+            paren_opens = prefix.count('（') - prefix.count('）')
+            
+            if paren_opens > 0:
+                # This word is inside a parenthetical - treat it as a gloss match
+                # Find the position to insert marker (after the closing ）)
+                suffix = line_text[match.end():]
+                close_paren_match = re.match(r'[^）]*）', suffix)
+                if close_paren_match:
+                    insert_end = match.end() + close_paren_match.end()
+                    all_matches.append({
+                        'word': word,
+                        'start': match.start(),
+                        'end': insert_end,
+                        'rset': rset,
+                        'is_gloss': True
+                    })
+            else:
+                all_matches.append({
+                    'word': word,
+                    'start': match.start(),
+                    'end': match.end(),
+                    'rset': rset,
+                    'is_gloss': False
+                })
+    
+    # Also check for image tokens that are rhyme words (exact match)
+    for word, rset in word_to_set.items():
+        if '⟦IMG:' in word:
+            for match in re.finditer(re.escape(word), line_text):
+                pos = match.end()
+                if pos < len(line_text) and line_text[pos] == '[':
+                    continue
+                # Check for following gloss: ⟦IMG:X⟧（Y）
+                suffix = line_text[match.end():]
+                gloss_match = re.match(r'（[^）]+）', suffix)
+                if gloss_match:
+                    # Include gloss in the match so marker goes after ）
+                    all_matches.append({
+                        'word': word,
+                        'start': match.start(),
+                        'end': match.end() + gloss_match.end(),
+                        'rset': rset,
+                        'is_gloss': False
+                    })
+                else:
+                    all_matches.append({
+                        'word': word,
+                        'start': match.start(),
+                        'end': match.end(),
+                        'rset': rset,
+                        'is_gloss': False
+                    })
+    
+    # Special: Look for patterns ⟦IMG:X⟧（Y） where Y might be a rhyme word
+    # even if the image in rhyme_info is different
+    img_gloss_pattern = re.compile(r'⟦IMG:[^⟧]+⟧（([^）]+)）')
+    for match in img_gloss_pattern.finditer(line_text):
+        gloss_text = match.group(1)
+        # Extract CJK chars from gloss
+        for ch in re.findall(r'[\u4E00-\u9FFF]', gloss_text):
+            if ch in word_to_set:
+                rset = word_to_set[ch]
+                # Check if not already matched
+                pos_already_matched = any(m['start'] <= match.start() < m['end'] for m in all_matches)
+                if not pos_already_matched:
+                    all_matches.append({
+                        'word': ch,
+                        'start': match.start(),
+                        'end': match.end(),
+                        'rset': rset,
+                        'is_gloss': True
+                    })
+    
+    # Special case: If rhyme_info contains ANY image token and line ENDS with an image+gloss pattern,
+    # associate them even if the image IDs don't match exactly (different extractions of same rare char)
+    # Only match at terminal position to avoid false positives
+    rhyme_sets_with_images = [rset for rset in rhyme_sets if any('⟦IMG:' in w for w in rset['words'])]
+    if rhyme_sets_with_images:
+        # Check if line ends with image+gloss pattern (terminal position)
+        # Match the image+gloss, but capture the core pattern for positioning
+        terminal_img_match = re.search(r'(⟦IMG:[^⟧]+⟧（[^）]+）)[，。；：\[\]\d]*$', line_text)
+        if terminal_img_match:
+            # Check if this position is already matched
+            pos_already_matched = any(m['start'] <= terminal_img_match.start(1) < m['end'] for m in all_matches)
+            if not pos_already_matched:
+                # Assign to the first rhyme set that contains an image token
+                rset = rhyme_sets_with_images[0]
+                all_matches.append({
+                    'word': terminal_img_match.group(1),
+                    'start': terminal_img_match.start(1),
+                    'end': terminal_img_match.end(1),  # End at the closing ), not including punctuation
+                    'rset': rset,
+                    'is_gloss': True
+                })
+    
+    # Sort matches by position (descending) to annotate from right to left
+    all_matches.sort(key=lambda m: m['start'], reverse=True)
+    
+    # Remove overlapping matches (keep rightmost)
+    filtered_matches = []
+    last_start = len(line_text)
+    for match in all_matches:
+        if match['end'] <= last_start:
+            filtered_matches.append(match)
+            last_start = match['start']
+    
+    # Apply annotations from right to left
+    primary_set_id = ''
+    primary_word = ''
+    primary_label = ''
+    
+    for match in filtered_matches:
+        rset = match['rset']
+        set_id = rset['id']
+        label = rset.get('label', '')
+        
+        if include_category and label:
+            short_category = re.sub(r'(部|獨韻|通韻|合韻)+$', '', label)
+            if short_category:
+                marker = f'[{set_id}@{short_category}]'
+            else:
+                marker = f'[{set_id}]'
+        else:
+            marker = f'[{set_id}]'
+        
+        # Insert marker after the word
+        annotated = annotated[:match['end']] + marker + annotated[match['end']:]
+        
+        # Track the rightmost (primary) annotation
+        if not primary_set_id:
+            primary_set_id = set_id
+            primary_word = match['word']
+            primary_label = label
+    
+    # If no matches, try original terminal-only logic as fallback
+    if not filtered_matches:
+        token, gloss_char, insert_pos = find_terminal_token(line_text)
+        
+        if not token:
+            return line_text, '', '', '', ''
+        
+        rhyme_set = find_rhyme_set(token, gloss_char, rhyme_sets)
+        
+        if not rhyme_set:
+            missed_reason = ''
+            for rset in rhyme_sets:
+                if token in rset['words'] or (gloss_char and gloss_char in rset['words']):
+                    missed_reason = f"Token '{token}' found in rhyme set '{rset['label']}' but not tagged"
+                    break
+            return line_text, '', token, '', missed_reason
+        
+        set_id = rhyme_set['id']
+        label = rhyme_set.get('label', '')
+        
+        if include_category and label:
+            short_category = re.sub(r'(部|獨韻|通韻|合韻)+$', '', label)
+            if short_category:
+                marker = f'[{set_id}@{short_category}]'
+            else:
+                marker = f'[{set_id}]'
+        else:
+            marker = f'[{set_id}]'
+        
+        annotated = line_text[:insert_pos] + marker + line_text[insert_pos:]
+        return annotated, set_id, token, label, ''
+    
+    return annotated, primary_set_id, primary_word, primary_label, ''
+
+
+def extract_chapter2_poems(pdf_path, start_page=21, end_page=141):
+    """
+    Extract poems from Chapter 2 using layout-based parsing with state machine.
+    
+    State A: Waiting for 【用韻情況】
+    State B: Collecting rhyme info, then verse lines
+    
+    Builds lines from layout tokens (chars + small images).
+    """
+    import os
+    from pathlib import Path
+    
+    # Ensure extracted_images directory exists
+    img_dir = Path('extracted_images')
+    img_dir.mkdir(exist_ok=True)
+    
+    segments = []
+    segment_counter = 100
+    
+    # State machine with backward rhyme attachment
+    state = 'WAITING_VERSE'  # or 'COLLECTING_VERSE' or 'COLLECTING_RHYME_INFO' or 'IN_NOTES'
+    current_verse_lines = []
+    current_text_name = None
+    current_start_page = None
+    pending_rhyme_target_idx = None  # Index of segment waiting for rhyme info
+    
+    # New: Track collection/excavation site and section numbers
+    current_collection = None  # e.g., "睡虎地秦墓竹簡"
+    current_section = None     # e.g., "2.1.1"
+    current_notes = []         # Footnotes for current segment
+    
+    # Collection mapping from section number prefix
+    COLLECTION_MAP = {
+        '2.1': '睡虎地秦墓竹簡',
+        '2.2': '放馬灘秦墓簡牘',
+        '2.3': '王家臺秦墓竹簡',
+        '2.4': '周家臺秦墓簡牘',
+        '2.5': '嶽麓書院藏秦簡',
+        '2.6': '北京大學藏秦簡牘',
+    }
+    
+    def flush_segment(attach_rhyme_info_lines=None):
+        """Flush accumulated verse lines as a segment."""
+        nonlocal segment_counter, current_verse_lines, current_text_name
+        nonlocal current_start_page, pending_rhyme_target_idx, current_notes
+        
+        if not current_verse_lines:
+            return
+        
+        # Don't attach rhyme info here - it will come later
+        rhyme_info_raw = ''
+        if attach_rhyme_info_lines:
+            rhyme_info_raw = '\n'.join(attach_rhyme_info_lines).strip()
+        
+        img_count = sum(line['text'].count('⟦IMG:') for line in current_verse_lines)
+        
+        # Calculate slip range from verse lines
+        slip_ids = [line.get('slip_id', '') for line in current_verse_lines if line.get('slip_id')]
+        slip_range = ''
+        if slip_ids:
+            first_slip = slip_ids[0]
+            last_slip = slip_ids[-1]
+            if first_slip == last_slip:
+                slip_range = f"簡{first_slip}"
+            else:
+                slip_range = f"簡{first_slip}至{last_slip}"
+        
+        segment_idx = len(segments)
+        segments.append({
+            'poem_id': f"POEM_{segment_counter:03d}",
+            'text_name': current_text_name or '',
+            'collection': current_collection or '',
+            'section': current_section or '',
+            'slip_range': slip_range,
+            'start_page': current_start_page or 0,
+            'lines': current_verse_lines[:],
+            'rhyme_info_raw': rhyme_info_raw,
+            'notes': current_notes[:],  # Copy current notes
+            'img_count': img_count
+        })
+        
+        # This segment is pending rhyme info
+        pending_rhyme_target_idx = segment_idx
+        
+        segment_counter += 1
+        current_verse_lines = []
+        current_start_page = None
+        current_notes = []  # Clear notes for next segment
+    
+    def build_line_from_layout(page, page_num):
+        """Build visual lines from layout objects (chars + small images)."""
+        chars = page.chars
+        images = getattr(page, 'images', [])
+        
+        if not chars:
+            return []
+        
+        # Group chars by y-position (top coordinate)
+        Y_TOLERANCE = 3
+        lines_by_y = {}
+        
+        for ch in chars:
+            y = round(ch['top'] / Y_TOLERANCE) * Y_TOLERANCE
+            if y not in lines_by_y:
+                lines_by_y[y] = {'chars': [], 'images': []}
+            lines_by_y[y]['chars'].append(ch)
+        
+        # Add small images (≤14pt width/height) to appropriate y-bands
+        for idx, img in enumerate(images):
+            width = img.get('width', 0)
+            height = img.get('height', 0)
+            if width <= 14 and height <= 14:
+                img_y = img.get('top', 0)
+                y = round(img_y / Y_TOLERANCE) * Y_TOLERANCE
+                
+                # Find closest y-band
+                if y not in lines_by_y:
+                    closest_y = min(lines_by_y.keys(), key=lambda k: abs(k - y), default=y)
+                    if abs(closest_y - y) < 10:
+                        y = closest_y
+                
+                if y in lines_by_y:
+                    img_id = f"IMG_p{page_num:03d}_{idx+1:03d}"
+                    lines_by_y[y]['images'].append({
+                        'x0': img.get('x0', 0),
+                        'img_id': img_id,
+                        'img_obj': img
+                    })
+        
+        # Build text lines by merging chars and images by x-position
+        visual_lines = []
+        for y in sorted(lines_by_y.keys()):
+            band = lines_by_y[y]
+            
+            # Merge chars and image placeholders
+            tokens = []
+            for ch in band['chars']:
+                tokens.append({'x0': ch['x0'], 'text': ch['text'], 'type': 'char'})
+            for img_data in band['images']:
+                tokens.append({'x0': img_data['x0'], 'text': f"⟦IMG:{img_data['img_id']}⟧", 
+                              'type': 'img', 'img_obj': img_data['img_obj'], 'img_id': img_data['img_id']})
+            
+            # Sort by x-position
+            tokens.sort(key=lambda t: t['x0'])
+            
+            # Build line text
+            line_text = ''.join(t['text'] for t in tokens)
+            
+            # Save image crops
+            for t in tokens:
+                if t['type'] == 'img':
+                    try:
+                        img_obj = t['img_obj']
+                        img_crop = page.crop((img_obj['x0'], img_obj['top'], 
+                                             img_obj['x0'] + img_obj['width'],
+                                             img_obj['top'] + img_obj['height']))
+                        img_path = img_dir / f"{t['img_id']}.png"
+                        img_crop.to_image(resolution=150).save(str(img_path))
+                    except Exception:
+                        pass
+            
+            visual_lines.append(line_text.strip())
+        
+        return visual_lines
+    
+    # Verse line pattern: ends with slip-id like 02-1, 17-3, 1-2背, optionally [5]
+    VERSE_PATTERN = re.compile(r'^(.+?)[,，]?\s*(\d{1,3}-\d+[^,，。；\s]*?)(\[\d+\])?\s*$')
+    
+    with pdfplumber.open(pdf_path) as pdf:
+        for page_num in range(start_page, min(end_page, len(pdf.pages) + 1)):
+            page = pdf.pages[page_num - 1]
+            
+            visual_lines = build_line_from_layout(page, page_num)
+            
+            for line in visual_lines:
+                if not line:
+                    continue
+                
+                # Detect section headers (collection and text name)
+                section_match = re.match(r'^(\d+\.\d+(?:\.\d+)?)', line)
+                if section_match:
+                    section_num = section_match.group(1)
+                    current_section = section_num
+                    
+                    # A new section ends any previous state
+                    if state in ('COLLECTING_RHYME_INFO', 'IN_NOTES'):
+                        # Flush any pending rhyme info
+                        if state == 'COLLECTING_RHYME_INFO' and pending_rhyme_target_idx is not None:
+                            if pending_rhyme_target_idx < len(segments):
+                                rhyme_info_raw = '\n'.join(current_rhyme_info_lines).strip()
+                                segments[pending_rhyme_target_idx]['rhyme_info_raw'] = rhyme_info_raw
+                                pending_rhyme_target_idx = None
+                            current_rhyme_info_lines = []
+                        state = 'WAITING_VERSE'
+                    
+                    # Update collection based on major section number (e.g., 2.1 -> 睡虎地)
+                    major_section = '.'.join(section_num.split('.')[:2])
+                    if major_section in COLLECTION_MAP:
+                        current_collection = COLLECTION_MAP[major_section]
+                    
+                    # Extract text name if present
+                    text_match = re.search(r'《([^》]+)》', line)
+                    if text_match:
+                        current_text_name = text_match.group(1)
+                    continue
+                
+                # Skip page headers/footers
+                if any(skip in line for skip in ['秦簡牘韻文整理與研究', '济南大学硕士学位论文']):
+                    continue
+                
+                # State transitions
+                if line == '【用韻情況】':
+                    # Flush current verse segment before collecting rhyme info
+                    if state == 'COLLECTING_VERSE' and current_verse_lines:
+                        flush_segment()
+                    # Now collect rhyme info - it will be attached to the segment we just flushed
+                    state = 'COLLECTING_RHYME_INFO'
+                    current_rhyme_info_lines = []
+                    continue
+                
+                if line in ['【註釋】', '【注释】']:
+                    # Start notes section - collect footnotes for PRECEDING segment
+                    if state == 'COLLECTING_RHYME_INFO':
+                        # Attach collected rhyme info to pending segment
+                        if pending_rhyme_target_idx is not None and pending_rhyme_target_idx < len(segments):
+                            rhyme_info_raw = '\n'.join(current_rhyme_info_lines).strip()
+                            segments[pending_rhyme_target_idx]['rhyme_info_raw'] = rhyme_info_raw
+                        current_rhyme_info_lines = []
+                    elif state == 'COLLECTING_VERSE':
+                        # End current verse segment
+                        flush_segment()
+                    # Notes will be attached to pending_rhyme_target_idx (the segment we just finished)
+                    state = 'IN_NOTES'
+                    continue
+                
+                # Collect footnotes in notes section - attach to PRECEDING segment
+                if state == 'IN_NOTES':
+                    # Footnotes start with [n] pattern
+                    if re.match(r'^\[\d+\]', line.strip()):
+                        # Attach this note directly to the pending segment
+                        if pending_rhyme_target_idx is not None and pending_rhyme_target_idx < len(segments):
+                            segments[pending_rhyme_target_idx]['notes'].append(line.strip())
+                        else:
+                            # Fallback to current_notes for next segment (shouldn't happen normally)
+                            current_notes.append(line.strip())
+                    elif pending_rhyme_target_idx is not None and pending_rhyme_target_idx < len(segments):
+                        # Continuation of previous footnote
+                        seg_notes = segments[pending_rhyme_target_idx]['notes']
+                        if seg_notes and not line.startswith('①') and not line.startswith('②'):
+                            if not any(skip in line for skip in ['http:', 'www.', '年第', '頁。']):
+                                seg_notes[-1] += ' ' + line.strip()
+                    continue
+                
+                # Handle COLLECTING_RHYME_INFO state first - we need to capture rhyme info lines
+                # which would otherwise be filtered by is_footnote_or_commentary
+                if state == 'COLLECTING_RHYME_INFO':
+                    # Check if this line starts a new verse (ends our rhyme collection)
+                    verse_lines = split_verse_lines_by_slip_id(line)
+                    
+                    if verse_lines:
+                        # Hit verse line(s) while collecting rhyme - attach rhyme to previous segment
+                        if pending_rhyme_target_idx is not None and pending_rhyme_target_idx < len(segments):
+                            rhyme_info_raw = '\n'.join(current_rhyme_info_lines).strip()
+                            segments[pending_rhyme_target_idx]['rhyme_info_raw'] = rhyme_info_raw
+                            pending_rhyme_target_idx = None
+                        
+                        # Start new verse segment with first verse line
+                        state = 'COLLECTING_VERSE'
+                        current_start_page = page_num
+                        current_verse_lines = []
+                        for line_text, slip_id in verse_lines:
+                            current_verse_lines.append({
+                                'text': line_text,
+                                'slip_id': slip_id,
+                                'page': page_num
+                            })
+                        current_rhyme_info_lines = []
+                    else:
+                        # No slip ID - check if this is a new verse line (pure verse)
+                        is_verse, confidence = is_verse_like(line, [])
+                        
+                        if is_verse and confidence >= 0.5:
+                            # Looks like verse - attach collected rhyme and start new segment
+                            if pending_rhyme_target_idx is not None and pending_rhyme_target_idx < len(segments):
+                                rhyme_info_raw = '\n'.join(current_rhyme_info_lines).strip()
+                                segments[pending_rhyme_target_idx]['rhyme_info_raw'] = rhyme_info_raw
+                                pending_rhyme_target_idx = None
+                            
+                            state = 'COLLECTING_VERSE'
+                            current_start_page = page_num
+                            current_verse_lines = [{
+                                'text': line,
+                                'slip_id': '',  # No slip ID
+                                'page': page_num
+                            }]
+                            current_rhyme_info_lines = []
+                        else:
+                            # Still collecting rhyme info - add this line
+                            current_rhyme_info_lines.append(line)
+                    continue
+                
+                # Skip footnotes and commentary lines (not in COLLECTING_RHYME_INFO state)
+                if is_footnote_or_commentary(line):
+                    continue
+                
+                # Check if this line contains verse (slip IDs)
+                # Use Rule A: Split by slip-id boundaries
+                verse_lines = split_verse_lines_by_slip_id(line)
+                
+                # If no slip IDs found, check if line is verse-like using smart detection
+                if not verse_lines and state == 'COLLECTING_VERSE':
+                    # Get context from recent verse lines
+                    context = [v['text'] for v in current_verse_lines[-5:]] if current_verse_lines else []
+                    is_verse, confidence = is_verse_like(line, context)
+                    
+                    if is_verse:
+                        # Treat as verse line without slip ID
+                        current_verse_lines.append({
+                            'text': line,
+                            'slip_id': '',  # No slip ID
+                            'page': page_num
+                        })
+                        continue
+                
+                if state == 'COLLECTING_VERSE':
+                    if verse_lines:
+                        # Continue collecting verse lines
+                        for line_text, slip_id in verse_lines:
+                            current_verse_lines.append({
+                                'text': line_text,
+                                'slip_id': slip_id,
+                                'page': page_num
+                            })
+                    else:
+                        # No slip ID found - already handled above with verse detection
+                        # If we get here, it's truly not a verse line
+                        # Skip footnote markers like [3], [4], etc. - don't flush segment
+                        if re.match(r'^\[\d+\]\s*$', line):
+                            continue
+                        # Otherwise end segment
+                        flush_segment()
+                        state = 'WAITING_VERSE'
+                
+                elif state == 'WAITING_VERSE':
+                    if verse_lines:
+                        # Start collecting verse
+                        state = 'COLLECTING_VERSE'
+                        current_start_page = page_num
+                        current_verse_lines = []
+                        for line_text, slip_id in verse_lines:
+                            current_verse_lines.append({
+                                'text': line_text,
+                                'slip_id': slip_id,
+                                'page': page_num
+                            })
+                    else:
+                        # No slip ID - check if this is a pure verse line (common in 王家臺 歸藏)
+                        is_verse, confidence = is_verse_like(line, [])
+                        
+                        if is_verse and confidence >= 0.5:
+                            # Start collecting verse with this line
+                            state = 'COLLECTING_VERSE'
+                            current_start_page = page_num
+                            current_verse_lines = [{
+                                'text': line,
+                                'slip_id': '',  # No slip ID
+                                'page': page_num
+                            }]
+        
+        # Flush last segment
+        flush_segment()
+    
+    # Post-process: annotate lines with rhyme patterns and collect diagnostics
+    missed_tags = []
+    for segment in segments:
+        rhyme_sets = parse_rhyme_info(segment['rhyme_info_raw'])
+        
+        for line_data in segment['lines']:
+            annotated, set_id, rhyme_word, rhyme_label, missed_reason = annotate_line_with_rhyme(
+                line_data['text'], rhyme_sets, line_data.get('slip_id', '')
+            )
+            line_data['text_annotated'] = annotated
+            line_data['rhyme_set_id'] = set_id
+            line_data['rhyme_word'] = rhyme_word
+            line_data['rhyme_label'] = rhyme_label
+            
+            # Rule E: Log missed tags
+            if missed_reason:
+                missed_tags.append({
+                    'poem_id': segment['poem_id'],
+                    'line_text': line_data['text'][:60],
+                    'slip_id': line_data.get('slip_id', ''),
+                    'terminal_token': rhyme_word,
+                    'reason': missed_reason
+                })
+    
+    return segments, missed_tags
+
+
+def export_annotated_poems(segments, output_dir):
+    """
+    Export clean, book-format text file with all poems with rhyme annotations.
+    
+    Creates a single consolidated file with all poems.
+    
+    Only exports segments where:
+    - Rhyme info is present
+    - At least one line has a rhyme tag [a]/[b]/etc.
+    - Lines pass footnote filter
+    
+    Improvements (2026-02-04):
+    1. Treat � as hard error - replace with explicit placeholder
+    2. Enforce slip-id boundary - split lines with multiple slip IDs
+    3. Fix dangling short lines (PDF wrapping artifacts)
+    4. Preserve all markup tokens unchanged
+    5. Add integrity checks and issue logging
+    
+    Format:
+    @title: <text_name> <poem_id>
+    @annotator: 胡蝶 (from dissertation)
+    LINE_TEXT[a]
+    LINE_TEXT[b]
+    ...
+    """
+    import re
+    from pathlib import Path
+    
+    exported_count = 0
+    all_poems = []  # Collect all poems for consolidated file
+    skipped_fragments = 0
+    issues = []  # Issue log for integrity checks
+    img_tokens_found = set()  # Track all IMG tokens referenced
+    
+    # Slip-ID pattern
+    slip_id_pattern = r'\d+-\d+(?:背)?'
+    
+    def replace_replacement_char(text, poem_id, line_num):
+        """Replace � with explicit placeholder and log it."""
+        if '�' in text:
+            issues.append({
+                'type': 'REPLACEMENT_CHAR',
+                'poem_id': poem_id,
+                'line_num': line_num,
+                'text': text
+            })
+            # Replace with explicit marker
+            text = text.replace('�', '⟦UNK⟧')
+        return text
+    
+    def split_by_slip_ids(text):
+        """Split text into multiple lines if it contains multiple slip IDs."""
+        matches = list(re.finditer(slip_id_pattern, text))
+        
+        if len(matches) <= 1:
+            return [text]
+        
+        lines = []
+        start = 0
+        for match in matches:
+            end = match.end()
+            line = text[start:end].strip()
+            if line:
+                lines.append(line)
+            start = end
+        
+        # Add any remaining text after last slip ID
+        if start < len(text):
+            remainder = text[start:].strip()
+            if remainder:
+                # If remainder has no slip ID and isn't very short, might be continuation
+                # For safety, keep it separate
+                lines.append(remainder)
+        
+        return lines if lines else [text]
+    
+    def join_dangling_lines(lines):
+        """Join very short lines that look like PDF wrapping artifacts."""
+        if len(lines) <= 1:
+            return lines
+        
+        result = []
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            
+            # Check if this is a dangling short line
+            # Criteria: <= 3 CJK chars, no punctuation/slip-id/markers
+            cjk_count = len(re.findall(r'[\u4E00-\u9FFF]', line))
+            has_markers = bool(re.search(r'[，。；：]|' + slip_id_pattern + r'|\[|\]|（|）|⟦|⟧|〖|〗', line))
+            
+            if cjk_count <= 3 and not has_markers and i + 1 < len(lines):
+                # Potentially a dangling line - join with next
+                next_line = lines[i + 1]
+                joined = line + next_line  # No space for Chinese
+                result.append(joined)
+                i += 2
+            else:
+                result.append(line)
+                i += 1
+        
+        return result
+    
+    def extract_img_tokens(text):
+        """Extract all IMG tokens from text."""
+        return set(re.findall(r'⟦IMG:[^⟧]+⟧', text))
+    
+    def check_line_integrity(line, poem_id, line_num):
+        """Check line integrity and log issues."""
+        # Check: no more than one slip ID per line
+        slip_ids = re.findall(slip_id_pattern, line)
+        if len(slip_ids) > 1:
+            issues.append({
+                'type': 'MULTIPLE_SLIP_IDS',
+                'poem_id': poem_id,
+                'line_num': line_num,
+                'slip_ids': slip_ids,
+                'text': line
+            })
+        
+        # Check: no remaining �
+        if '�' in line:
+            issues.append({
+                'type': 'REMAINING_REPLACEMENT_CHAR',
+                'poem_id': poem_id,
+                'line_num': line_num,
+                'text': line
+            })
+
+    
+    for segment in segments:
+        # Only export if we have rhyme info
+        if not segment.get('rhyme_info_raw'):
+            continue
+        
+        # Check if any lines have tags
+        has_tags = any(line.get('rhyme_set_id') for line in segment['lines'])
+        
+        # Count rhyme words per rhyme set
+        rhyme_counts = {}
+        for line_data in segment['lines']:
+            rid = line_data.get('rhyme_set_id', '')
+            if rid:
+                rhyme_counts[rid] = rhyme_counts.get(rid, 0) + 1
+        
+        # Require at least one rhyme set with 2+ lines, OR has rhyme info with 2+ lines
+        # (relaxed: poems with rhyme info should be included even if annotation didn't work perfectly)
+        has_valid_rhyme = any(count >= 2 for count in rhyme_counts.values())
+        has_rhyme_with_lines = segment.get('rhyme_info_raw') and len(segment['lines']) >= 2
+        
+        if not has_valid_rhyme and not has_rhyme_with_lines:
+            skipped_fragments += 1
+            continue
+        
+        # Process lines with all improvements
+        # Keep both text and metadata for intelligent processing
+        line_items = []
+        for line_data in segment['lines']:
+            text = line_data['text']
+            if is_footnote_or_commentary(text):
+                continue
+            
+            # Use annotated version if available
+            line_output = line_data.get('text_annotated', text)
+            slip_id = line_data.get('slip_id', '')
+            line_items.append({'text': line_output, 'slip_id': slip_id})
+        
+        if not line_items:
+            continue
+        
+        poem_id = segment['poem_id']
+        
+        # Step 1: Replace � with explicit placeholder
+        for i, item in enumerate(line_items):
+            item['text'] = replace_replacement_char(item['text'], poem_id, i+1)
+        
+        # Step 2: Join dangling short lines (fix PDF wrapping)
+        # But DON'T join if both lines have slip IDs (they're separate verses)
+        joined_items = []
+        i = 0
+        while i < len(line_items):
+            item = line_items[i]
+            line = item['text']
+            has_slip = bool(item['slip_id'])
+            
+            # Check if this is a dangling short line
+            cjk_count = len(re.findall(r'[\u4E00-\u9FFF]', line))
+            has_markers = bool(re.search(r'[，。；：]|' + slip_id_pattern + r'|\[|\]|（|）|⟦|⟧|〖|〗', line))
+            
+            # Only join if:
+            # 1. Line is short (<= 3 CJK chars) and has no markers
+            # 2. Neither current nor next line has slip ID (otherwise they're real verse boundaries)
+            # 3. Next line exists
+            if (cjk_count <= 3 and not has_markers and not has_slip and 
+                i + 1 < len(line_items) and not line_items[i + 1]['slip_id']):
+                # Join with next line
+                next_line = line_items[i + 1]['text']
+                joined = line + next_line  # No space for Chinese
+                joined_items.append(joined)
+                i += 2
+            else:
+                joined_items.append(line)
+                i += 1
+        
+        # Step 3: Split by slip-ID boundaries (shouldn't be needed now, but keep for safety)
+        final_lines = []
+        for line in joined_items:
+            split_lines = split_by_slip_ids(line)
+            final_lines.extend(split_lines)
+        
+        # Step 4: Extract IMG tokens and check integrity
+        for i, line in enumerate(final_lines):
+            img_tokens_found.update(extract_img_tokens(line))
+            check_line_integrity(line, poem_id, i+1)
+        
+        if not final_lines:
+            continue
+        
+        # Prepare poem content with enhanced metadata
+        text_name = segment.get('text_name', 'Unknown')
+        collection = segment.get('collection', '')
+        section = segment.get('section', '')
+        slip_range = segment.get('slip_range', '')
+        notes = segment.get('notes', [])
+        
+        poem_content = []
+        poem_content.append(f"@title: {text_name} ({poem_id})")
+        if collection:
+            poem_content.append(f"@collection: {collection}")
+        if section:
+            poem_content.append(f"@section: {section}")
+        if slip_range:
+            poem_content.append(f"@slip_range: {slip_range}")
+        poem_content.append("@annotator: 胡蝶")
+        
+        # Add notes if present (footnotes with parallel text references)
+        if notes:
+            # Include all notes (no limit)
+            for note in notes:
+                # Truncate very long notes
+                if len(note) > 500:
+                    note = note[:500] + '...'
+                poem_content.append(f"@note: {note}")
+        
+        poem_content.append("")
+        poem_content.extend(final_lines)
+        
+        # Add to consolidated list
+        all_poems.append('\n'.join(poem_content))
+        
+        exported_count += 1
+    
+    # Write consolidated file with all poems
+    if all_poems:
+        consolidated_path = Path(output_dir) / 'all_annotated_poems.txt'
+        with open(consolidated_path, 'w', encoding='utf-8') as f:
+            f.write('\n\n---\n\n'.join(all_poems))
+    
+    # Write IMG token reference list
+    if img_tokens_found:
+        img_list_path = Path(output_dir) / 'image_tokens_referenced.txt'
+        with open(img_list_path, 'w', encoding='utf-8') as f:
+            for token in sorted(img_tokens_found):
+                f.write(f'{token}\n')
+    
+    # Write issues report if any
+    if issues:
+        import json
+        issues_path = Path(output_dir) / 'poem_export_issues.json'
+        with open(issues_path, 'w', encoding='utf-8') as f:
+            json.dump(issues, f, ensure_ascii=False, indent=2)
+        print(f'  ⚠️  Found {len(issues)} integrity issues - see {issues_path}')
+    
+    return exported_count, skipped_fragments
 
 
 # ---- CLI and IO ----------------------------------------------------------
@@ -582,9 +2254,27 @@ if __name__ == '__main__':
     parser.add_argument('--pdf', default='hudie2023_qin_rhymes.pdf')
     args = parser.parse_args()
 
-    ts = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
-    outdir = Path(args.outdir)
-    outdir.mkdir(parents=True, exist_ok=True)
+    from datetime import timezone
+    ts = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+    run_dir = Path(args.outdir) / f'run_{ts}'
+    run_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Create symlink to extracted_images in the run directory
+    extracted_images_root = Path('extracted_images')
+    extracted_images_in_run = run_dir / 'extracted_images'
+    if extracted_images_root.exists():
+        # Create relative symlink
+        try:
+            if extracted_images_in_run.exists():
+                extracted_images_in_run.unlink()
+            extracted_images_in_run.symlink_to('../../extracted_images', target_is_directory=True)
+        except Exception as e:
+            print(f"Warning: Could not create symlink to extracted_images: {e}")
+    
+    # Update latest_run.txt to point to this run
+    latest_run_file = Path(args.outdir) / 'latest_run.txt'
+    with open(latest_run_file, 'w', encoding='utf-8') as f:
+        f.write(str(run_dir) + '\n')
 
     rhymes, rows = parse_qin_rhymes(args.pdf)
 
@@ -600,24 +2290,196 @@ if __name__ == '__main__':
         with open(Path('extracted_images') / 'images_index.json', 'w', encoding='utf-8') as mf:
             json.dump([{'id': k, 'file': v} for k, v in image_map.items()], mf, ensure_ascii=False, indent=2)
 
-    # write rhyme segments (stable schema)
-    rhyme_fname = outdir / f'rhyme_output.{ts}.txt'
-    with open(rhyme_fname, 'w', encoding='utf-8', newline='') as f:
-        fieldnames = ['RhymeSegment','Characters','OC_RhymeGroup','Tones','Source','Page','TableID']
-        writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter='\t')
-        writer.writeheader()
+    # ---- TSV Validation and Writing (2026-02-04) ----
+    
+    def normalize_cell(text):
+        """Remove embedded newlines and tabs from TSV cell content."""
+        if not isinstance(text, str):
+            text = str(text)
+        # Replace newlines and carriage returns with space
+        text = text.replace('\r\n', ' ').replace('\n', ' ').replace('\r', ' ')
+        # Replace tabs with space
+        text = text.replace('\t', ' ')
+        # Collapse multiple spaces and strip
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text
+    
+    def extract_witness_labels(char_string):
+        """
+        Extract apparatus/witness labels (e.g. BIII, AII) from end of character string.
+        Can be: standalone token after 、, or attached to last character.
+        Returns: (cleaned_chars, witness_label)
+        """
+        if not char_string:
+            return char_string, ''
+        
+        witness_pattern = r'([A-Z]{1,3}[IVX]{1,6})$'
+        
+        # First check if entire string ends with witness label (could be attached)
+        match = re.search(witness_pattern, char_string)
+        if match:
+            witness = match.group(1)
+            # Remove witness from end
+            cleaned = char_string[:match.start()].rstrip()
+            return cleaned, witness
+        
+        # Fallback: split on separator and check last token
+        tokens = [t.strip() for t in char_string.split('、') if t.strip()]
+        if not tokens:
+            return char_string, ''
+        
+        last_token = tokens[-1]
+        if re.match(r'^[A-Z]{1,3}[IVX]{1,6}$', last_token):
+            # Last token is standalone witness label
+            cleaned = '、'.join(tokens[:-1])
+            return cleaned, last_token
+        
+        return char_string, ''
+    
+    def validate_char_tone_alignment(chars, tones):
+        """
+        Validate that character and tone counts align.
+        Returns: (is_valid, char_count, tone_count)
+        """
+        if not chars or not tones:
+            return True, 0, 0
+        
+        # Split characters on enumeration separator
+        char_tokens = [t.strip() for t in chars.split('、') if t.strip()]
+        
+        # Split tones - try multiple separators
+        # Tones might use: space, —, –, -, |
+        tone_tokens = []
+        for sep in [' ', '—', '–', '-', '|']:
+            if sep in tones:
+                tone_tokens = [t.strip() for t in tones.split(sep) if t.strip() and t in '平上去入']
+                if tone_tokens:
+                    break
+        
+        if not tone_tokens:
+            # No recognizable tone separators, count individual tone chars
+            tone_tokens = [c for c in tones if c in '平上去入']
+        
+        char_count = len(char_tokens)
+        tone_count = len(tone_tokens)
+        
+        is_valid = (char_count == tone_count) or char_count == 0 or tone_count == 0
+        
+        return is_valid, char_count, tone_count
+    
+    def write_rhyme_tsv_with_validation(rhymes, output_path, rejects_path):
+        """
+        Write rhyme_output TSV with strict validation.
+        
+        Returns: (valid_count, reject_count, self_check_passed)
+        """
+        fieldnames = ['RhymeSegment', 'Characters', 'OC_RhymeGroup', 'Tones', 
+                      'Source', 'Page', 'TableID', 'image_refs', 'Witness', 'needs_review']
+        
+        valid_rows = []
+        reject_rows = []
+        
         for rhyme in rhymes:
-            row = {k: rhyme.get(k, '') for k in fieldnames}
-            writer.writerow(row)
+            # Step 1: Normalize all cells
+            normalized = {}
+            for key in fieldnames:
+                if key in ['Witness', 'needs_review']:
+                    normalized[key] = ''  # Will be populated
+                else:
+                    normalized[key] = normalize_cell(rhyme.get(key, ''))
+            
+            # Step 2: Extract witness labels from Characters
+            chars, witness = extract_witness_labels(normalized['Characters'])
+            normalized['Characters'] = chars
+            normalized['Witness'] = witness
+            
+            # Step 3: Validate character-tone alignment
+            is_valid, char_count, tone_count = validate_char_tone_alignment(
+                normalized['Characters'], 
+                normalized['Tones']
+            )
+            
+            if not is_valid:
+                normalized['needs_review'] = f'ALIGNMENT:{char_count}chars_{tone_count}tones'
+            else:
+                normalized['needs_review'] = ''
+            
+            # Step 4: Structural validation - ensure exactly N columns
+            row_values = [normalized.get(k, '') for k in fieldnames]
+            if len(row_values) != len(fieldnames):
+                # Malformed row - reject it
+                reject_rows.append({
+                    'error': 'COLUMN_COUNT_MISMATCH',
+                    'expected': len(fieldnames),
+                    'got': len(row_values),
+                    'data': str(rhyme)
+                })
+                continue
+            
+            valid_rows.append(normalized)
+        
+        # Write valid rows
+        with open(output_path, 'w', encoding='utf-8', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter='\t', 
+                                   lineterminator='\n')
+            writer.writeheader()
+            for row in valid_rows:
+                writer.writerow(row)
+        
+        # Write rejects if any
+        if reject_rows:
+            with open(rejects_path, 'w', encoding='utf-8', newline='') as f:
+                reject_fieldnames = ['error', 'expected', 'got', 'data']
+                writer = csv.DictWriter(f, fieldnames=reject_fieldnames, delimiter='\t',
+                                       lineterminator='\n')
+                writer.writeheader()
+                for reject in reject_rows:
+                    writer.writerow(reject)
+        
+        # Self-check: re-read and verify structure
+        self_check_passed = True
+        with open(output_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+            for i, line in enumerate(lines):
+                if i == 0:  # Skip header
+                    continue
+                cols = line.rstrip('\n').split('\t')
+                if len(cols) != len(fieldnames):
+                    self_check_passed = False
+                    print(f'  ⚠️  Self-check failed: line {i+1} has {len(cols)} columns, expected {len(fieldnames)}')
+        
+        return len(valid_rows), len(reject_rows), self_check_passed
+
+    # write rhyme segments with validation
+    rhyme_fname = run_dir / f'rhyme_output.{ts}.tsv'
+    rejects_fname = run_dir / f'rhyme_output_rejects.{ts}.tsv'
+    valid_count, reject_count, self_check = write_rhyme_tsv_with_validation(
+        rhymes, rhyme_fname, rejects_fname
+    )
+    
     print(f'Wrote rhyme groups to {rhyme_fname}')
+    print(f'  - Valid rows: {valid_count}')
+    if reject_count > 0:
+        print(f'  - Rejected rows: {reject_count} (see {rejects_fname})')
+    if not self_check:
+        print(f'  ⚠️  Self-check FAILED - TSV structure may be corrupt!')
+    else:
+        print(f'  ✓ Self-check passed')
+    
+    # Count rows needing review
+    review_count = sum(1 for r in rhymes if validate_char_tone_alignment(
+        r.get('Characters', ''), r.get('Tones', ''))[0] == False)
+    if review_count > 0:
+        print(f'  - Rows needing review (alignment): {review_count}')
+
 
     # annotation and lines
     all_warnings = []
     if args.mode in ('both','annotation-only'):
         ann, warnings, ann_summary = make_annotation_rows(rows)
-        ann_fname = outdir / f'rhyme_annotations.{ts}.csv'
+        ann_fname = run_dir / f'rhyme_annotations.{ts}.tsv'
         with open(ann_fname, 'w', encoding='utf-8', newline='') as f:
-            fieldnames = ['RowID','TableID','RhymeSegment','page','row_in_source','raw_text','rhyme_raw','OC_RhymeGroup','tones_raw','rhyme_tokens','tone_tokens','rhyme_numbers','source','alignment_issue','notes','image_refs']
+            fieldnames = ['RowID','TableID','RhymeSegment','page','row_in_source','raw_text','Characters','OC_RhymeGroup','Tones','rhyme_tokens','tone_tokens','rhyme_numbers','Source','alignment_issue','notes','image_refs']
             writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter='\t')
             writer.writeheader()
             for a in ann:
@@ -664,17 +2526,112 @@ if __name__ == '__main__':
 
 
     if args.mode in ('both','lines-only'):
-        lines = make_line_rows(rows)
-        lines_fname = outdir / f'poem_lines.{ts}.csv'
-        with open(lines_fname, 'w', encoding='utf-8', newline='') as f:
-            fieldnames = ['RowID','TableID','RhymeSegment','page','row_in_source','text','row_type','rhymeids','source','notes','image_refs']
-            writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter='\t')
+        # Extract table-based poems (from appendix)
+        table_lines = make_line_rows(rows)
+        
+        # Extract prose-embedded poems (from Chapter 2) using layout-based state machine
+        chapter2_segments, missed_tags = extract_chapter2_poems(args.pdf, start_page=21, end_page=141)
+        
+        # Convert Chapter 2 segments to same format as table lines
+        prose_lines = []
+        for segment in chapter2_segments:
+            for i, line_data in enumerate(segment['lines'], 1):
+                prose_lines.append({
+                    'POEM': segment['poem_id'],
+                    'LINE_ORDER': i,
+                    'LINE': line_data['text'],
+                    'LINE_ANNOTATED': line_data.get('text_annotated', line_data['text']),
+                    'RHYME_SET_ID': line_data.get('rhyme_set_id', ''),
+                    'RHYME_WORD': line_data.get('rhyme_word', ''),
+                    'RHYME_LABEL': line_data.get('rhyme_label', ''),
+                    'RHYME_GROUP': '',  # From table format
+                    'RHYME_ID': '',     # From table format
+                    'SOURCE': segment['text_name'],
+                    'PAGE': line_data['page'],
+                    'TABLE_ID': f"CH2_P{line_data['page']:03d}",
+                    'RHYME_SEGMENT': '',
+                    'SLIP_ID': line_data.get('slip_id', ''),
+                    'RHYME_INFO': segment['rhyme_info_raw']
+                })
+        
+        # Write segment index for debugging
+        segment_index_fname = run_dir / f'segment_index.{ts}.csv'
+        with open(segment_index_fname, 'w', encoding='utf-8', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=['poem_id', 'text_name', 'collection', 'section', 'slip_range', 'start_page', 'n_lines', 'first_line', 'rhyme_info_raw', 'img_token_count'])
             writer.writeheader()
-            for l in lines:
+            for seg in chapter2_segments:
+                writer.writerow({
+                    'poem_id': seg['poem_id'],
+                    'text_name': seg.get('text_name', ''),
+                    'collection': seg.get('collection', ''),
+                    'section': seg.get('section', ''),
+                    'slip_range': seg.get('slip_range', ''),
+                    'start_page': seg['start_page'],
+                    'n_lines': len(seg['lines']),
+                    'first_line': seg['lines'][0]['text'][:50].replace('\n', ' ') if seg['lines'] else '',
+                    'rhyme_info_raw': seg['rhyme_info_raw'][:100].replace('\n', ' '),
+                    'img_token_count': seg['img_count']
+                })
+        
+        # Combine both sources
+        all_lines = table_lines + prose_lines
+        
+        lines_fname = run_dir / f'poem_lines.{ts}.csv'
+        with open(lines_fname, 'w', encoding='utf-8-sig', newline='') as f:
+            # Expanded fieldnames to include Chapter 2 metadata and rhyme annotations
+            fieldnames = ['POEM', 'LINE_ORDER', 'LINE', 'LINE_ANNOTATED', 'RHYME_SET_ID', 
+                         'RHYME_WORD', 'RHYME_LABEL', 'RHYME_GROUP', 'RHYME_ID', 
+                         'SOURCE', 'PAGE', 'TABLE_ID', 'RHYME_SEGMENT', 'SLIP_ID', 'RHYME_INFO']
+            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore')
+            writer.writeheader()
+            for l in all_lines:
+                # Fill in missing fields for table lines
+                if 'SLIP_ID' not in l:
+                    l['SLIP_ID'] = ''
+                if 'RHYME_INFO' not in l:
+                    l['RHYME_INFO'] = ''
+                if 'LINE_ANNOTATED' not in l:
+                    l['LINE_ANNOTATED'] = l['LINE']
+                if 'RHYME_SET_ID' not in l:
+                    l['RHYME_SET_ID'] = ''
+                if 'RHYME_WORD' not in l:
+                    l['RHYME_WORD'] = ''
+                if 'RHYME_LABEL' not in l:
+                    l['RHYME_LABEL'] = ''
                 writer.writerow(l)
+        
         print(f'Wrote line export to {lines_fname}')
+        print(f'  - Table-based poems: {len(table_lines)} lines')
+        print(f'  - Chapter 2 segments: {len(prose_lines)} lines from {len(chapter2_segments)} segments')
+        print(f'  - Total: {len(all_lines)} lines')
+        print(f'Wrote segment index to {segment_index_fname}')
+        
+        # Write missed tags diagnostic file
+        if missed_tags:
+            missed_tags_fname = run_dir / f'missed_tags.{ts}.json'
+            with open(missed_tags_fname, 'w', encoding='utf-8') as f:
+                json.dump(missed_tags, f, ensure_ascii=False, indent=2)
+            print(f'Missed tags diagnostic: {len(missed_tags)} potential missed rhyme tags in {missed_tags_fname}')
+        
+        # Validation checks
+        segments_with_rhyme = sum(1 for s in chapter2_segments if s['rhyme_info_raw'])
+        segments_with_images = sum(1 for s in chapter2_segments if s['img_count'] > 0)
+        lines_with_tags = sum(1 for l in prose_lines if l.get('RHYME_SET_ID'))
+        print(f'Validation:')
+        print(f'  - Segments with rhyme info: {segments_with_rhyme}/{len(chapter2_segments)}')
+        print(f'  - Segments with image tokens: {segments_with_images}/{len(chapter2_segments)}')
+        print(f'  - Lines with rhyme tags [a/b]: {lines_with_tags}/{len(prose_lines)}')
+        if segments_with_images == 0:
+            print(f'  ⚠️ WARNING: No image tokens found in Chapter 2 - image merge may not be working')
+        
+        # Export clean annotated poems to text file
+        exported_count, skipped_fragments = export_annotated_poems(chapter2_segments, run_dir)
+        consolidated_file = run_dir / 'all_annotated_poems.txt'
+        print(f'Exported {exported_count} annotated poems to: {consolidated_file}')
+        if skipped_fragments > 0:
+            print(f'  (Skipped {skipped_fragments} single-rhyme fragments)')
 
-    warnings_fname = outdir / f'warnings.{ts}.json'
+    warnings_fname = run_dir / f'warnings.{ts}.json'
     with open(warnings_fname, 'w', encoding='utf-8') as wf:
         json.dump(all_warnings, wf, ensure_ascii=False, indent=2)
     if all_warnings:
@@ -696,7 +2653,7 @@ if __name__ == '__main__':
         meta_ts['files'].append(str(lines_fname.name))
     meta_ts['files'].append(str(rhyme_fname.name))
     meta_ts['files'].append(str(warnings_fname.name))
-    with open(outdir / f'metadata.{ts}.json', 'w', encoding='utf-8') as f:
+    with open(run_dir / f'metadata.{ts}.json', 'w', encoding='utf-8') as f:
         json.dump(meta_ts, f, ensure_ascii=False, indent=2)
 
     meta_latest = {
@@ -706,14 +2663,14 @@ if __name__ == '__main__':
         'files': meta_ts['files'],
         'note': 'This dataset contains conservative extractions. Most poems are not present and are not reconstructed.'
     }
-    with open(outdir / 'metadata.json', 'w', encoding='utf-8') as f:
+    with open(Path(args.outdir) / 'metadata.json', 'w', encoding='utf-8') as f:
         json.dump(meta_latest, f, ensure_ascii=False, indent=2)
 
-    with open(outdir / 'README.txt', 'w', encoding='utf-8') as f:
+    with open(run_dir / 'README.txt', 'w', encoding='utf-8') as f:
         f.write('This folder contains CLDF-friendly exports derived from hudie2023_qin_rhymes.pdf.\n')
         f.write('NOTE: This extraction is conservative. Many poems are not present in the source tables and have not been reconstructed. Only table-structured rhyme rows are emitted to the annotation outputs.\n')
-        f.write('Files: rhyme_output.<ts>.txt (rhyme segments with RhymeSegment, Characters, OC_RhymeGroup, Tones), rhyme_annotations.<ts>.csv (row-level annotations), poem_lines.<ts>.csv (conservative line-level text), warnings.<ts>.json (alignment/header issues).\n')
-        f.write('Images: extracted_images/images_index.json maps stable IDs (IMG_pXXX_NNN) to image files; individual rows contain image_refs and in-situ [IMG:ID] placeholders where non-Unicode glyphs occurred.\n')
+        f.write('Files: rhyme_output.<ts>.tsv (rhyme segments with RhymeSegment, Characters, OC_RhymeGroup, Tones), rhyme_annotations.<ts>.tsv (row-level annotations), poem_lines.<ts>.csv (UTF-8 with BOM, one line per row with POEM, LINE_ORDER, LINE, RHYME_GROUP, RHYME_ID, NOTES columns), warnings.<ts>.json (alignment/header issues).\n')
+        f.write('Images: extracted_images/images_index.json maps stable IDs (IMG_pXXX_NNN) to image files; individual rows contain image_refs and in-situ ⟦IMG:ID⟧ placeholders where non-Unicode glyphs occurred.\n')
     print('Wrote metadata and README')
 
     # build final summary and unresolved files
@@ -761,15 +2718,15 @@ if __name__ == '__main__':
             final_summary['unreferenced_extractions'] = []
             final_summary['unreferenced_extractions_count'] = 0
 
-    summary_fname = outdir / f'summary.{ts}.json'
+    summary_fname = run_dir / f'summary.{ts}.json'
     with open(summary_fname, 'w', encoding='utf-8') as sf:
         json.dump(final_summary, sf, ensure_ascii=False, indent=2)
     # write manifest describing this run and exact output files
     manifest = {'run_id': ts, 'files': meta_ts.get('files', []) + [summary_fname.name]}
-    with open(outdir / f'manifest.{ts}.json', 'w', encoding='utf-8') as mf:
+    with open(run_dir / f'manifest.{ts}.json', 'w', encoding='utf-8') as mf:
         json.dump(manifest, mf, ensure_ascii=False, indent=2)
     # update latest manifest for deterministic lookup by canary
-    with open(outdir / 'latest_manifest.json', 'w', encoding='utf-8') as mf:
+    with open(Path(args.outdir) / 'latest_manifest.json', 'w', encoding='utf-8') as mf:
         json.dump(manifest, mf, ensure_ascii=False, indent=2)
     print(f'Wrote summary to {summary_fname}')
 
@@ -777,7 +2734,7 @@ if __name__ == '__main__':
     # write unresolved file and warn if present
     unresolved = final_summary.get('annotation_summary', {}).get('unresolved_rows', [])
     if unresolved:
-        unresolved_fname = outdir / f'unresolved.{ts}.json'
+        unresolved_fname = run_dir / f'unresolved.{ts}.json'
         with open(unresolved_fname, 'w', encoding='utf-8') as uf:
             json.dump(unresolved, uf, ensure_ascii=False, indent=2)
         print(f'Unresolved rows present: {len(unresolved)}. Wrote {unresolved_fname}. Exiting with failure code.')
