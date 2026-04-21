@@ -167,6 +167,21 @@ def is_verse_like(text, context_lines=None):
     return is_verse, confidence
 
 
+def is_rhyme_metadata_line(text):
+    """Detect rhyme metadata lines that should not be treated as verse."""
+    if not text:
+        return False
+
+    text = text.strip()
+
+    rhyme_patterns = [
+        r'^[\u4E00-\u9FFF、，,\s]{1,16}部(?:獨韻|合韻|通韻)?[——-].+',
+        r'^[\u4E00-\u9FFF、，,\s]{1,16}部(?:旁轉|轉韻|葉韻)[。，]?$',
+    ]
+
+    return any(re.search(pattern, text) for pattern in rhyme_patterns)
+
+
 def is_footnote_or_commentary(text):
     """
     Detect footnote markers and scholarly commentary that shouldn't be treated as poetry.
@@ -187,10 +202,7 @@ def is_footnote_or_commentary(text):
         return True
     
     # Rhyme info lines (these are metadata, not verse)
-    # Pattern: starts with or contains rhyme category names followed by 部 and then ——
-    # Examples: "魚月元部合韻——固、察", "陽部——方、章", "職蒸部通韻——塞"
-    # Rhyme categories: 魚 月 元 陽 之 幽 微 職 蒸 真 侵 文 物 緝 質 耕 脂 宵 侯 東 冬 歌 鐸 藥 屋 覺 錫
-    if re.search(r'[魚月元陽之幽微職蒸真侵文物緝質耕脂宵侯東冬歌鐸藥屋覺錫]+部[獨合通]?韻?[——-]', text):
+    if is_rhyme_metadata_line(text):
         return True
     
     # Lines that are section titles/headers
@@ -223,6 +235,10 @@ def is_footnote_or_commentary(text):
         r'韻語.*?少見',  # Meta-commentary about rhyme usage, e.g., "擇術中韻語少見"
         r'^.*?中韻語',  # Commentary about rhyme words in a text
         r'^此段',  # "This section..."
+        r'^例[，,]',  # e.g. "例，我們很難說..."
+        r'我們很難說',  # analytical prose
+        r'尾句.*?入韻',  # rhyme analysis commentary
+        r'^部旁轉[。，]?$',  # short rhyme-analysis note
     ]
     
     for pattern in commentary_patterns:
@@ -242,8 +258,8 @@ def is_footnote_or_commentary(text):
     if re.search(r'^[^，。]{2,10}[：:]《[^》]+》', text):
         return True
     
-    # Date patterns (e.g., "1年4月9日", "2010年")
-    if re.search(r'^\d+年\d*月?\d*日?[。，]?$', text):
+    # Date patterns (e.g., "1年4月9日", "2010年", "26日")
+    if re.search(r'^\d+(?:年\d*月?\d*日?|月\d+日|日)[。，]?$', text):
         return True
     
     # Long commentary-style lines (scholarly discussion, not verse)
@@ -252,6 +268,86 @@ def is_footnote_or_commentary(text):
         return True
     
     return False
+
+
+def extract_leading_title(text):
+    """Extract a leading local title like 《馬心》 from a line."""
+    if not text:
+        return '', text
+
+    match = re.match(r'^\s*《([^》]+)》\s*(.*)$', text.strip())
+    if not match:
+        return '', text
+
+    title = match.group(1).strip()
+    remainder = match.group(2).strip()
+
+    # Ignore long bibliographic/article titles that are not local poem labels.
+    if (
+        len(title) > 20 or
+        re.search(r'(研究|修訂|整理|刊佈|版本|編聯|頁|年|博士|學位|論文|的)', title)
+    ):
+        return '', text
+
+    return title, remainder
+
+
+def normalize_rhyme_category(label):
+    """Normalize rhyme category labels for matching/export."""
+    if not label:
+        return ''
+
+    category = re.sub(r'(部|獨韻|通韻|合韻)+$', '', label.strip())
+    category = re.sub(r'[、,，\s]+', '', category)
+    return category
+
+
+def extract_rhyme_type(label):
+    """Extract rhyme type shorthand from a label."""
+    if not label:
+        return ''
+    if '獨韻' in label:
+        return '獨'
+    if '合韻' in label:
+        return '合'
+    if '通韻' in label:
+        return '通'
+    return ''
+
+
+def extract_titles_from_source(source_text):
+    """Extract normalized titles from annotation source strings."""
+    if not source_text:
+        return []
+    return [title.strip() for title in re.findall(r'《([^》]+)》', source_text)]
+
+
+def build_tone_lookup(annotation_rows):
+    """Build a title-keyed lookup of rhyme words to tones from table annotations."""
+    tone_index = defaultdict(list)
+
+    for row in annotation_rows or []:
+        titles = extract_titles_from_source(row.get('Source', ''))
+        if not titles:
+            continue
+
+        rhyme_tokens = [t.strip() for t in row.get('rhyme_tokens', '').split('|') if t.strip()]
+        tone_tokens = [t.strip() for t in row.get('tone_tokens', '').split('|') if t.strip()]
+        if not rhyme_tokens or not tone_tokens:
+            continue
+
+        record = {
+            'group': normalize_rhyme_category(row.get('OC_RhymeGroup', '')),
+            'ordered_words': rhyme_tokens,
+            'ordered_tones': tone_tokens,
+            'word_tones': {word: tone for word, tone in zip(rhyme_tokens, tone_tokens) if word and tone},
+            'words': set(rhyme_tokens),
+        }
+
+        for title in titles:
+            tone_index[title].append(record)
+
+    return tone_index
 
 def filter_rhyme_chars(tokens):
     """Filter a list of tokens to keep only valid rhyme characters and image placeholders.
@@ -1311,8 +1407,8 @@ def parse_rhyme_info(rhyme_info_raw):
     
     Input: "職蒸部通韻——塞、力、能；真元部合韻——身、願。"
     Output: [
-        {'id': 'a', 'label': '職蒸部通韻', 'words': {'塞', '力', '能'}},
-        {'id': 'b', 'label': '真元部合韻', 'words': {'身', '願'}},
+        {'id': 'a', 'label': '職蒸部通韻', 'words': ['塞', '力', '能']},
+        {'id': 'b', 'label': '真元部合韻', 'words': ['身', '願']},
     ]
     """
     if not rhyme_info_raw:
@@ -1339,22 +1435,113 @@ def parse_rhyme_info(rhyme_info_raw):
         wordlist = parts[1].strip()
         
         # Split wordlist on enumeration comma
-        words = set()
-        for word in re.split(r'、', wordlist):
+        words = []
+        for word in re.split(r'[、,，;；\s]+', wordlist):
             word = word.strip()
             # Keep only actual characters and image placeholders
             if word and (re.search(r'[\u4E00-\u9FFF]', word) or '⟦IMG:' in word):
-                words.add(word)
-        
+                words.append(word)
+
         if words and set_idx < len(set_ids):
             rhyme_sets.append({
                 'id': set_ids[set_idx],
                 'label': label,
-                'words': words
+                'words': words,
+                'category': normalize_rhyme_category(label),
+                'rhyme_type': extract_rhyme_type(label),
+                'tone_map': {}
             })
             set_idx += 1
-    
+
     return rhyme_sets
+
+
+def enrich_rhyme_sets_with_tones(rhyme_sets, text_name, tone_lookup):
+    """Attach per-word tone data from table annotations to prose rhyme sets."""
+    if not rhyme_sets or not text_name or not tone_lookup:
+        return rhyme_sets
+
+    candidates = tone_lookup.get(text_name, [])
+    if not candidates:
+        return rhyme_sets
+
+    for rset in rhyme_sets:
+        words = rset.get('words', [])
+        word_set = set(words)
+        if not word_set:
+            continue
+
+        best_candidate = None
+        best_score = 0
+        category = rset.get('category', '')
+
+        for candidate in candidates:
+            overlap = len(word_set & candidate.get('words', set()))
+            if overlap == 0:
+                continue
+
+            score = overlap * 10
+            candidate_group = candidate.get('group', '')
+            if category and candidate_group:
+                if category == candidate_group:
+                    score += 5
+                elif category in candidate_group or candidate_group in category:
+                    score += 2
+
+            if score > best_score:
+                best_candidate = candidate
+                best_score = score
+
+        if not best_candidate:
+            continue
+
+        tone_map = {}
+
+        # First prefer exact word matches.
+        for word in words:
+            tone = best_candidate.get('word_tones', {}).get(word)
+            if tone and word not in tone_map:
+                tone_map[word] = tone
+
+        # If exact token matching misses image placeholders or alternate glyph forms,
+        # fall back to positional alignment when counts line up.
+        ordered_words = best_candidate.get('ordered_words', [])
+        ordered_tones = best_candidate.get('ordered_tones', [])
+        if len(words) == len(ordered_words):
+            for idx, word in enumerate(words):
+                if word not in tone_map and idx < len(ordered_tones):
+                    tone = ordered_tones[idx]
+                    if tone:
+                        tone_map[word] = tone
+
+        rset['tone_map'] = tone_map
+
+    return rhyme_sets
+
+
+def build_rhyme_marker(rset, matched_word=None, gloss_char=None, include_category=True):
+    """Build inline rhyme markers like [a@魚歌-平-合]."""
+    set_id = rset.get('id', '')
+    if not set_id:
+        return ''
+
+    if not include_category:
+        return f'[{set_id}]'
+
+    category = rset.get('category') or normalize_rhyme_category(rset.get('label', ''))
+    tone_map = rset.get('tone_map', {}) or {}
+    tone = ''
+    if matched_word:
+        tone = tone_map.get(matched_word, '')
+    if not tone and gloss_char:
+        tone = tone_map.get(gloss_char, '')
+    rhyme_type = rset.get('rhyme_type') or extract_rhyme_type(rset.get('label', ''))
+
+    parts = [part for part in (category, tone, rhyme_type) if part]
+    if not parts:
+        return f'[{set_id}]'
+
+    return f'[{set_id}@{"-".join(parts)}]'
 
 
 def annotate_line_with_rhyme(line_text, rhyme_sets, slip_id='', include_category=True):
@@ -1415,7 +1602,8 @@ def annotate_line_with_rhyme(line_text, rhyme_sets, slip_id='', include_category
                         'start': match.start(),
                         'end': insert_end,
                         'rset': rset,
-                        'is_gloss': True
+                        'is_gloss': True,
+                        'gloss_char': word
                     })
             else:
                 all_matches.append({
@@ -1423,7 +1611,8 @@ def annotate_line_with_rhyme(line_text, rhyme_sets, slip_id='', include_category
                     'start': match.start(),
                     'end': match.end(),
                     'rset': rset,
-                    'is_gloss': False
+                    'is_gloss': False,
+                    'gloss_char': None
                 })
     
     # Also check for image tokens that are rhyme words (exact match)
@@ -1443,7 +1632,8 @@ def annotate_line_with_rhyme(line_text, rhyme_sets, slip_id='', include_category
                         'start': match.start(),
                         'end': match.end() + gloss_match.end(),
                         'rset': rset,
-                        'is_gloss': False
+                        'is_gloss': False,
+                        'gloss_char': None
                     })
                 else:
                     all_matches.append({
@@ -1451,7 +1641,8 @@ def annotate_line_with_rhyme(line_text, rhyme_sets, slip_id='', include_category
                         'start': match.start(),
                         'end': match.end(),
                         'rset': rset,
-                        'is_gloss': False
+                        'is_gloss': False,
+                        'gloss_char': None
                     })
     
     # Special: Look for patterns ⟦IMG:X⟧（Y） where Y might be a rhyme word
@@ -1471,7 +1662,8 @@ def annotate_line_with_rhyme(line_text, rhyme_sets, slip_id='', include_category
                         'start': match.start(),
                         'end': match.end(),
                         'rset': rset,
-                        'is_gloss': True
+                        'is_gloss': True,
+                        'gloss_char': ch
                     })
     
     # Special case: If rhyme_info contains ANY image token and line ENDS with an image+gloss pattern,
@@ -1488,12 +1680,19 @@ def annotate_line_with_rhyme(line_text, rhyme_sets, slip_id='', include_category
             if not pos_already_matched:
                 # Assign to the first rhyme set that contains an image token
                 rset = rhyme_sets_with_images[0]
+                gloss_char = ''
+                gloss_match = re.search(r'（([^）]+)）', terminal_img_match.group(1))
+                if gloss_match:
+                    cjk_chars = re.findall(r'[\u4E00-\u9FFF]', gloss_match.group(1))
+                    if cjk_chars:
+                        gloss_char = cjk_chars[0]
                 all_matches.append({
                     'word': terminal_img_match.group(1),
                     'start': terminal_img_match.start(1),
                     'end': terminal_img_match.end(1),  # End at the closing ), not including punctuation
                     'rset': rset,
-                    'is_gloss': True
+                    'is_gloss': True,
+                    'gloss_char': gloss_char
                 })
     
     # Sort matches by position (descending) to annotate from right to left
@@ -1516,16 +1715,13 @@ def annotate_line_with_rhyme(line_text, rhyme_sets, slip_id='', include_category
         rset = match['rset']
         set_id = rset['id']
         label = rset.get('label', '')
-        
-        if include_category and label:
-            short_category = re.sub(r'(部|獨韻|通韻|合韻)+$', '', label)
-            if short_category:
-                marker = f'[{set_id}@{short_category}]'
-            else:
-                marker = f'[{set_id}]'
-        else:
-            marker = f'[{set_id}]'
-        
+        marker = build_rhyme_marker(
+            rset,
+            matched_word=match.get('word'),
+            gloss_char=match.get('gloss_char'),
+            include_category=include_category,
+        )
+
         # Insert marker after the word
         annotated = annotated[:match['end']] + marker + annotated[match['end']:]
         
@@ -1552,25 +1748,149 @@ def annotate_line_with_rhyme(line_text, rhyme_sets, slip_id='', include_category
                     break
             return line_text, '', token, '', missed_reason
         
-        set_id = rhyme_set['id']
         label = rhyme_set.get('label', '')
-        
-        if include_category and label:
-            short_category = re.sub(r'(部|獨韻|通韻|合韻)+$', '', label)
-            if short_category:
-                marker = f'[{set_id}@{short_category}]'
-            else:
-                marker = f'[{set_id}]'
-        else:
-            marker = f'[{set_id}]'
-        
+        marker = build_rhyme_marker(
+            rhyme_set,
+            matched_word=token,
+            gloss_char=gloss_char,
+            include_category=include_category,
+        )
+
         annotated = line_text[:insert_pos] + marker + line_text[insert_pos:]
-        return annotated, set_id, token, label, ''
+        return annotated, rhyme_set['id'], token, label, ''
     
     return annotated, primary_set_id, primary_word, primary_label, ''
 
 
-def extract_chapter2_poems(pdf_path, start_page=21, end_page=141):
+def parse_slip_id_key(slip_id):
+    """Parse slip ids like 37-2 or 326 into sortable tuples."""
+    if not slip_id:
+        return None
+
+    slip_id = slip_id.replace('簡', '').strip()
+
+    match = re.match(r'^(\d+)-(\d+)(背)?$', slip_id)
+    if match:
+        return ('compound', int(match.group(1)), int(match.group(2)), 1 if match.group(3) else 0)
+
+    match = re.match(r'^(\d+)$', slip_id)
+    if match:
+        return ('simple', int(match.group(1)))
+
+    return None
+
+
+def parse_slip_range_bounds(slip_range):
+    """Return (start_key, end_key) parsed from a slip range string."""
+    if not slip_range:
+        return None, None
+
+    slip_range = slip_range.replace('簡', '').strip()
+    if '至' in slip_range:
+        start_text, end_text = [part.strip() for part in slip_range.split('至', 1)]
+    else:
+        start_text = end_text = slip_range
+
+    return parse_slip_id_key(start_text), parse_slip_id_key(end_text)
+
+
+def slip_ranges_are_adjacent(left_range, right_range):
+    """Check whether two slip ranges are directly adjacent."""
+    _, left_end = parse_slip_range_bounds(left_range)
+    right_start, _ = parse_slip_range_bounds(right_range)
+
+    if not left_end or not right_start:
+        return False
+
+    if left_end[0] != right_start[0]:
+        return False
+
+    if left_end[0] == 'compound':
+        return left_end[2] == right_start[2] and left_end[3] == right_start[3] and right_start[1] == left_end[1] + 1
+
+    return right_start[1] == left_end[1] + 1
+
+
+def segment_looks_like_intro(segment):
+    """Detect short introductory fragments that belong with the next verse segment."""
+    texts = [line.get('text', '').strip() for line in segment.get('lines', []) if line.get('text', '').strip()]
+    if not texts or len(texts) > 3:
+        return False
+
+    intro_patterns = [
+        r'曰[:：]?$',
+        r'祝曰[:：]?$',
+        r'禹步.*曰[:：]?$',
+        r'見車[，,].*曰[:：]?$',
+    ]
+
+    return any(re.search(pattern, text) for text in texts for pattern in intro_patterns)
+
+
+def merge_segment_pair(left, right):
+    """Merge two adjacent segments that belong to the same poem."""
+    merged = dict(left)
+    merged['lines'] = left.get('lines', []) + right.get('lines', [])
+    merged['rhyme_info_raw'] = left.get('rhyme_info_raw') or right.get('rhyme_info_raw', '')
+    merged['notes'] = left.get('notes', []) + [note for note in right.get('notes', []) if note not in left.get('notes', [])]
+    merged['img_count'] = sum(line.get('text', '').count('⟦IMG:') for line in merged['lines'])
+    merged['start_page'] = min(left.get('start_page') or 0, right.get('start_page') or 0)
+
+    if not merged.get('slip_range'):
+        merged['slip_range'] = right.get('slip_range', '')
+    elif right.get('slip_range'):
+        left_start, left_end = parse_slip_range_bounds(left.get('slip_range', ''))
+        right_start, right_end = parse_slip_range_bounds(right.get('slip_range', ''))
+        if left_start and right_end:
+            merged['slip_range'] = f"簡{left.get('slip_range', '').replace('簡', '').split('至', 1)[0]}至{right.get('slip_range', '').replace('簡', '').split('至', 1)[-1]}"
+
+    right_title = right.get('text_name', '')
+    left_title = left.get('text_name', '')
+    if right_title and (not left_title or len(right_title) > len(left_title)):
+        merged['text_name'] = right_title
+
+    return merged
+
+
+def merge_related_segments(segments):
+    """Merge adjacent segments that were incorrectly split between intro/verse/rhyme states."""
+    if not segments:
+        return segments
+
+    merged = []
+    i = 0
+    while i < len(segments):
+        current = segments[i]
+        if i + 1 < len(segments):
+            nxt = segments[i + 1]
+            same_context = (
+                current.get('collection') == nxt.get('collection') and
+                current.get('section') == nxt.get('section')
+            )
+            same_title = (
+                current.get('text_name') and
+                current.get('text_name') == nxt.get('text_name')
+            )
+            current_needs_rhyme = not current.get('rhyme_info_raw')
+            next_has_rhyme = bool(nxt.get('rhyme_info_raw'))
+            contiguous_slips = slip_ranges_are_adjacent(current.get('slip_range', ''), nxt.get('slip_range', ''))
+            intro_fragment = segment_looks_like_intro(current)
+
+            if same_context and current_needs_rhyme and next_has_rhyme and (contiguous_slips or (same_title and intro_fragment)):
+                merged.append(merge_segment_pair(current, nxt))
+                i += 2
+                continue
+
+        merged.append(current)
+        i += 1
+
+    for idx, segment in enumerate(merged, 100):
+        segment['poem_id'] = f'POEM_{idx:03d}'
+
+    return merged
+
+
+def extract_chapter2_poems(pdf_path, start_page=21, end_page=141, tone_lookup=None):
     """
     Extract poems from Chapter 2 using layout-based parsing with state machine.
     
@@ -1593,6 +1913,8 @@ def extract_chapter2_poems(pdf_path, start_page=21, end_page=141):
     state = 'WAITING_VERSE'  # or 'COLLECTING_VERSE' or 'COLLECTING_RHYME_INFO' or 'IN_NOTES'
     current_verse_lines = []
     current_text_name = None
+    pending_local_title = None
+    current_segment_title = None
     current_start_page = None
     pending_rhyme_target_idx = None  # Index of segment waiting for rhyme info
     
@@ -1613,7 +1935,7 @@ def extract_chapter2_poems(pdf_path, start_page=21, end_page=141):
     
     def flush_segment(attach_rhyme_info_lines=None):
         """Flush accumulated verse lines as a segment."""
-        nonlocal segment_counter, current_verse_lines, current_text_name
+        nonlocal segment_counter, current_verse_lines, current_text_name, pending_local_title, current_segment_title
         nonlocal current_start_page, pending_rhyme_target_idx, current_notes
         
         if not current_verse_lines:
@@ -1640,7 +1962,7 @@ def extract_chapter2_poems(pdf_path, start_page=21, end_page=141):
         segment_idx = len(segments)
         segments.append({
             'poem_id': f"POEM_{segment_counter:03d}",
-            'text_name': current_text_name or '',
+            'text_name': current_segment_title or pending_local_title or current_text_name or '',
             'collection': current_collection or '',
             'section': current_section or '',
             'slip_range': slip_range,
@@ -1658,6 +1980,8 @@ def extract_chapter2_poems(pdf_path, start_page=21, end_page=141):
         current_verse_lines = []
         current_start_page = None
         current_notes = []  # Clear notes for next segment
+        pending_local_title = None
+        current_segment_title = None
     
     def build_line_from_layout(page, page_num):
         """Build visual lines from layout objects (chars + small images)."""
@@ -1739,6 +2063,15 @@ def extract_chapter2_poems(pdf_path, start_page=21, end_page=141):
     VERSE_PATTERN = re.compile(r'^(.+?)[,，]?\s*(\d{1,3}-\d+[^,，。；\s]*?)(\[\d+\])?\s*$')
     
     with pdfplumber.open(pdf_path) as pdf:
+        section_title_map = {}
+        for page_num in range(start_page, min(end_page, len(pdf.pages) + 1)):
+            text_lines = (pdf.pages[page_num - 1].extract_text() or '').splitlines()
+            for raw_line in text_lines:
+                raw_line = raw_line.strip()
+                header_match = re.match(r'^(\d+(?:\.\d+)+)《([^》]+)》', raw_line)
+                if header_match:
+                    section_title_map[header_match.group(1)] = header_match.group(2).strip()
+
         for page_num in range(start_page, min(end_page, len(pdf.pages) + 1)):
             page = pdf.pages[page_num - 1]
             
@@ -1749,13 +2082,16 @@ def extract_chapter2_poems(pdf_path, start_page=21, end_page=141):
                     continue
                 
                 # Detect section headers (collection and text name)
-                section_match = re.match(r'^(\d+\.\d+(?:\.\d+)?)', line)
+                section_match = re.match(r'^(\d+(?:\.\d+)+)', line)
                 if section_match:
                     section_num = section_match.group(1)
                     current_section = section_num
                     
                     # A new section ends any previous state
-                    if state in ('COLLECTING_RHYME_INFO', 'IN_NOTES'):
+                    if state == 'COLLECTING_VERSE' and current_verse_lines:
+                        flush_segment()
+                        state = 'WAITING_VERSE'
+                    elif state in ('COLLECTING_RHYME_INFO', 'IN_NOTES'):
                         # Flush any pending rhyme info
                         if state == 'COLLECTING_RHYME_INFO' and pending_rhyme_target_idx is not None:
                             if pending_rhyme_target_idx < len(segments):
@@ -1764,6 +2100,7 @@ def extract_chapter2_poems(pdf_path, start_page=21, end_page=141):
                                 pending_rhyme_target_idx = None
                             current_rhyme_info_lines = []
                         state = 'WAITING_VERSE'
+                    pending_local_title = None
                     
                     # Update collection based on major section number (e.g., 2.1 -> 睡虎地)
                     major_section = '.'.join(section_num.split('.')[:2])
@@ -1772,14 +2109,30 @@ def extract_chapter2_poems(pdf_path, start_page=21, end_page=141):
                     
                     # Extract text name if present
                     text_match = re.search(r'《([^》]+)》', line)
-                    if text_match:
+                    if section_num in section_title_map:
+                        current_text_name = section_title_map[section_num]
+                    elif text_match:
                         current_text_name = text_match.group(1)
+                    else:
+                        header_text = line[section_match.end():].strip()
+                        current_text_name = header_text or None
                     continue
                 
                 # Skip page headers/footers
                 if any(skip in line for skip in ['秦簡牘韻文整理與研究', '济南大学硕士学位论文']):
                     continue
-                
+
+                if state != 'IN_NOTES':
+                    local_title, remainder = extract_leading_title(line)
+                    if local_title:
+                        if state == 'COLLECTING_VERSE' and current_verse_lines:
+                            flush_segment()
+                            state = 'WAITING_VERSE'
+                        pending_local_title = local_title
+                        line = remainder
+                        if not line:
+                            continue
+
                 # State transitions
                 if line == '【用韻情況】':
                     # Flush current verse segment before collecting rhyme info
@@ -1826,6 +2179,10 @@ def extract_chapter2_poems(pdf_path, start_page=21, end_page=141):
                 # Handle COLLECTING_RHYME_INFO state first - we need to capture rhyme info lines
                 # which would otherwise be filtered by is_footnote_or_commentary
                 if state == 'COLLECTING_RHYME_INFO':
+                    if is_footnote_or_commentary(line):
+                        current_rhyme_info_lines.append(line)
+                        continue
+
                     # Check if this line starts a new verse (ends our rhyme collection)
                     verse_lines = split_verse_lines_by_slip_id(line)
                     
@@ -1839,6 +2196,8 @@ def extract_chapter2_poems(pdf_path, start_page=21, end_page=141):
                         # Start new verse segment with first verse line
                         state = 'COLLECTING_VERSE'
                         current_start_page = page_num
+                        current_segment_title = pending_local_title or current_text_name
+                        pending_local_title = None
                         current_verse_lines = []
                         for line_text, slip_id in verse_lines:
                             current_verse_lines.append({
@@ -1860,6 +2219,8 @@ def extract_chapter2_poems(pdf_path, start_page=21, end_page=141):
                             
                             state = 'COLLECTING_VERSE'
                             current_start_page = page_num
+                            current_segment_title = pending_local_title or current_text_name
+                            pending_local_title = None
                             current_verse_lines = [{
                                 'text': line,
                                 'slip_id': '',  # No slip ID
@@ -1914,10 +2275,16 @@ def extract_chapter2_poems(pdf_path, start_page=21, end_page=141):
                         state = 'WAITING_VERSE'
                 
                 elif state == 'WAITING_VERSE':
+                    section_allows_verse = bool(current_section and len(current_section.split('.')) >= 3)
+                    if not section_allows_verse:
+                        continue
+
                     if verse_lines:
                         # Start collecting verse
                         state = 'COLLECTING_VERSE'
                         current_start_page = page_num
+                        current_segment_title = pending_local_title or current_text_name
+                        pending_local_title = None
                         current_verse_lines = []
                         for line_text, slip_id in verse_lines:
                             current_verse_lines.append({
@@ -1933,6 +2300,8 @@ def extract_chapter2_poems(pdf_path, start_page=21, end_page=141):
                             # Start collecting verse with this line
                             state = 'COLLECTING_VERSE'
                             current_start_page = page_num
+                            current_segment_title = pending_local_title or current_text_name
+                            pending_local_title = None
                             current_verse_lines = [{
                                 'text': line,
                                 'slip_id': '',  # No slip ID
@@ -1941,11 +2310,14 @@ def extract_chapter2_poems(pdf_path, start_page=21, end_page=141):
         
         # Flush last segment
         flush_segment()
-    
+
+    segments = merge_related_segments(segments)
+
     # Post-process: annotate lines with rhyme patterns and collect diagnostics
     missed_tags = []
     for segment in segments:
         rhyme_sets = parse_rhyme_info(segment['rhyme_info_raw'])
+        rhyme_sets = enrich_rhyme_sets_with_tones(rhyme_sets, segment.get('text_name', ''), tone_lookup)
         
         for line_data in segment['lines']:
             annotated, set_id, rhyme_word, rhyme_label, missed_reason = annotate_line_with_rhyme(
@@ -2475,6 +2847,7 @@ if __name__ == '__main__':
 
     # annotation and lines
     all_warnings = []
+    ann = []
     if args.mode in ('both','annotation-only'):
         ann, warnings, ann_summary = make_annotation_rows(rows)
         ann_fname = run_dir / f'rhyme_annotations.{ts}.tsv'
@@ -2526,11 +2899,21 @@ if __name__ == '__main__':
 
 
     if args.mode in ('both','lines-only'):
+        tone_lookup = build_tone_lookup(ann)
+        if not tone_lookup:
+            ann_for_tones, _, _ = make_annotation_rows(rows)
+            tone_lookup = build_tone_lookup(ann_for_tones)
+
         # Extract table-based poems (from appendix)
         table_lines = make_line_rows(rows)
         
         # Extract prose-embedded poems (from Chapter 2) using layout-based state machine
-        chapter2_segments, missed_tags = extract_chapter2_poems(args.pdf, start_page=21, end_page=141)
+        chapter2_segments, missed_tags = extract_chapter2_poems(
+            args.pdf,
+            start_page=21,
+            end_page=141,
+            tone_lookup=tone_lookup,
+        )
         
         # Convert Chapter 2 segments to same format as table lines
         prose_lines = []
@@ -2743,4 +3126,3 @@ if __name__ == '__main__':
         # if unreferenced images exist, warn but continue
         if final_summary.get('unreferenced_extractions_count', 0) > 0:
             print(f"Warning: {final_summary['unreferenced_extractions_count']} unreferenced extracted images: {final_summary['unreferenced_extractions'][:10]}")
-
