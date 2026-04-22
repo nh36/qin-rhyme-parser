@@ -90,7 +90,7 @@ def load_expected_canaries():
         print(f'Failed to read expected canaries: {exc}')
         sys.exit(2)
 
-    return expected_doc.get('canaries', [])
+    return expected_doc
 
 
 def build_rows_index(rows):
@@ -101,6 +101,14 @@ def build_rows_index(rows):
         except Exception:
             seg = None
         key = (row.get('TableID'), seg)
+        rows_index.setdefault(key, []).append(row)
+    return rows_index
+
+
+def build_poem_line_index(rows):
+    rows_index = {}
+    for row in rows:
+        key = (row.get('SOURCE'), row.get('LINE'))
         rows_index.setdefault(key, []).append(row)
     return rows_index
 
@@ -134,7 +142,8 @@ def main():
         print('No annotation file found from manifest or outputs/; run parser first')
         sys.exit(2)
 
-    expected_list = load_expected_canaries()
+    expected_doc = load_expected_canaries()
+    expected_list = expected_doc.get('canaries', [])
     rows = read_delimited_rows(ann_path)
     rows_index = build_rows_index(rows)
     errors = []
@@ -179,6 +188,52 @@ def main():
                 f'For (TableID={table},RhymeSegment={seg}) token/tone count mismatch: '
                 f'{len(toks)} vs {len(tones)} (RowID={row.get("RowID")})'
             )
+
+    poem_line_canaries = expected_doc.get('poem_line_canaries', [])
+    if poem_line_canaries:
+        poem_lines_path = resolve_manifest_file(manifest_path, manifest, 'poem_lines.', ('.csv', '.tsv'))
+        if not poem_lines_path:
+            errors.append('No poem_lines export found from manifest or outputs/; cannot run poem-line canaries')
+        else:
+            poem_rows = read_delimited_rows(poem_lines_path)
+            poem_line_index = build_poem_line_index(poem_rows)
+
+            for item in poem_line_canaries:
+                source = item.get('source')
+                line = item.get('line')
+                key = (source, line)
+                matches = poem_line_index.get(key, [])
+
+                if not matches:
+                    errors.append(
+                        f'Poem-line canary not found in {poem_lines_path}: '
+                        f'source={source!r}, line={line!r}'
+                    )
+                    continue
+
+                if len(matches) > 1:
+                    poem_ids = [row.get('POEM') for row in matches]
+                    errors.append(
+                        f'Poem-line canary is ambiguous for source={source!r}, line={line!r}; '
+                        f'matches poems {poem_ids}'
+                    )
+                    continue
+
+                row = matches[0]
+                annotated = row.get('LINE_ANNOTATED') or ''
+                expected_annotated = item.get('expected_annotated')
+                expected_contains = item.get('expected_contains')
+
+                if expected_annotated is not None and annotated != expected_annotated:
+                    errors.append(
+                        f'Poem-line canary mismatch for {source!r} / {line!r}: '
+                        f'got {annotated!r}, expected {expected_annotated!r}'
+                    )
+                if expected_contains is not None and expected_contains not in annotated:
+                    errors.append(
+                        f'Poem-line canary missing substring for {source!r} / {line!r}: '
+                        f'annotated {annotated!r} does not contain {expected_contains!r}'
+                    )
 
     if errors:
         print('REGRESSION TEST FAILED')

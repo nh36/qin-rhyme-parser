@@ -4,5 +4,12 @@
     {"TableID": "P169_T001", "RhymeSegment": 37, "expected_tokens": ["人", "人"], "expect_tone_count": 2, "comment": "duplicate token case"},
     {"TableID": "P169_T001", "RhymeSegment": 52, "expected_tokens": ["喪", "英", "亡", "英"], "expect_tone_count": 4, "comment": "multi-token with repeated token"},
     {"TableID": "P169_T001", "RhymeSegment": 17, "expected_tokens": ["心", "音", "心"], "expect_tone_count": 3, "comment": "wrapped-row that previously lost a token"}
+  ],
+  "poem_line_canaries": [
+    {"source": "稷辰", "line": "秀，", "expected_annotated": "秀，", "comment": "single-character opening line is preserved"},
+    {"source": "稷辰", "line": "利野戰，必得侯王[1]", "expected_annotated": "利野戰，必得侯王[a@陽-平-獨][1]", "comment": "terminal footnote marker is restored before note attachment"},
+    {"source": "爲吏之道", "line": "勞以⟦IMG:IMG_p023_001⟧（率）之，", "expected_contains": "[b@真元-合]", "comment": "image rhyme receives an inline tag"},
+    {"source": "爲吏治官及黔首", "line": "勞以⟦IMG:IMG_p089_002⟧（率）之，", "expected_contains": "[a@職蒸-通]", "comment": "table-based image rhyme receives an inline tag"},
+    {"source": "祠祝之道", "line": "湯（倘）勿與相妨，", "expected_contains": "[a@鐸魚陽-平-通]", "comment": "cross-page rhyme labels still annotate earlier-page verse"}
   ]
 }

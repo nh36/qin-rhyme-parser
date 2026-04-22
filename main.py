@@ -135,7 +135,9 @@ def is_verse_like(text, context_lines=None):
     confidence = 0.0
     
     # Length heuristics
-    if 3 <= length <= 12:
+    if 1 <= length <= 2 and re.search(r'[，。；：]$', text):
+        confidence += 0.25
+    elif 3 <= length <= 12:
         confidence += 0.3
     elif 13 <= length <= 20:
         confidence += 0.1
@@ -369,6 +371,23 @@ def extract_embedded_note_text(text):
         return stripped
 
     return ''
+
+
+def restore_terminal_note_marker(segment, note_number):
+    """Restore a bare terminal note number like 吉。11 to 吉。[11] before export."""
+    if not segment or not note_number:
+        return False
+
+    marker = f'[{note_number}]'
+    for line_data in reversed(segment.get('lines', [])):
+        text = line_data.get('text', '')
+        if not text or marker in text:
+            continue
+        if re.search(rf'{re.escape(note_number)}\s*$', text):
+            line_data['text'] = re.sub(rf'{re.escape(note_number)}\s*$', marker, text)
+            return True
+
+    return False
 
 
 def build_tone_lookup(annotation_rows):
@@ -1207,7 +1226,7 @@ def make_line_rows(rows):
             line_text = line_text.strip().strip(',，。；：')
             
             # Skip if this is just a rhyme group marker with no actual line content
-            if not line_text or len(line_text) < 2:
+            if not line_text:
                 continue
             
             # Skip if this looks like it's just metadata
@@ -1272,7 +1291,8 @@ def split_verse_lines_by_slip_id(text):
             match = matches[0]
             line_text = text[:match.start()].strip()
             slip_id = match.group('slip')
-            return [(line_text, slip_id)]
+            footnote = match.group('fn') or ''
+            return [(f'{line_text}{footnote}', slip_id)]
         
         # Multiple slip IDs - split into multiple verse lines
         lines = []
@@ -1284,11 +1304,12 @@ def split_verse_lines_by_slip_id(text):
             else:
                 prev_end = matches[i-1].end()
                 line_text = text[prev_end:match.start()].strip()
+            footnote = match.group('fn') or ''
             
             line_text = line_text.lstrip('，。；：、 ')
             
             if line_text:
-                lines.append((line_text, slip_id))
+                lines.append((f'{line_text}{footnote}', slip_id))
         
         return lines
     
@@ -1332,13 +1353,14 @@ def split_verse_lines_by_slip_id(text):
     if match:
         line_text = match.group(1).strip()
         slip_id = match.group(2)
+        footnote = match.group(3) or ''
         
-        # Line must have meaningful CJK content (at least 2 CJK chars)
+        # Line must have meaningful CJK content (single-character lines are valid in this corpus)
         cjk_count = len(re.findall(r'[\u4E00-\u9FFF]', line_text))
-        if cjk_count >= 2:
+        if cjk_count >= 1:
             # Avoid matching years (e.g., "2010年" -> "2010")
             if not re.search(r'\d{4}$', line_text):
-                return [(line_text.rstrip('，。；：、 '), slip_id)]
+                return [(f"{line_text.rstrip('，。；：、 ')}{footnote}", slip_id)]
     
     return []
 
@@ -1722,34 +1744,34 @@ def annotate_line_with_rhyme(line_text, rhyme_sets, slip_id='', include_category
                         'gloss_char': ch
                     })
     
-    # Special case: If rhyme_info contains ANY image token and line ENDS with an image+gloss pattern,
-    # associate them even if the image IDs don't match exactly (different extractions of same rare char)
-    # Only match at terminal position to avoid false positives
+    # Special case: if rhyme_info contains image tokens, allow near-terminal image forms
+    # to stand for the rhyme even when the image ID differs across extractions.
     rhyme_sets_with_images = [rset for rset in rhyme_sets if any('⟦IMG:' in w for w in rset['words'])]
     if rhyme_sets_with_images:
-        # Check if line ends with image+gloss pattern (terminal position)
-        # Match the image+gloss, but capture the core pattern for positioning
-        terminal_img_match = re.search(r'(⟦IMG:[^⟧]+⟧（[^）]+）)[，。；：\[\]\d]*$', line_text)
-        if terminal_img_match:
-            # Check if this position is already matched
-            pos_already_matched = any(m['start'] <= terminal_img_match.start(1) < m['end'] for m in all_matches)
-            if not pos_already_matched:
-                # Assign to the first rhyme set that contains an image token
-                rset = rhyme_sets_with_images[0]
-                gloss_char = ''
-                gloss_match = re.search(r'（([^）]+)）', terminal_img_match.group(1))
-                if gloss_match:
-                    cjk_chars = re.findall(r'[\u4E00-\u9FFF]', gloss_match.group(1))
-                    if cjk_chars:
-                        gloss_char = cjk_chars[0]
-                all_matches.append({
-                    'word': terminal_img_match.group(1),
-                    'start': terminal_img_match.start(1),
-                    'end': terminal_img_match.end(1),  # End at the closing ), not including punctuation
-                    'rset': rset,
-                    'is_gloss': True,
-                    'gloss_char': gloss_char
-                })
+        trailing_img_pattern = re.compile(r'⟦IMG:[^⟧]+⟧(?:（([^）]+)）)?')
+        trailing_img_suffix = re.compile(r'(?:\[\d+\]|\d+|[之也者矣兮乎焉耳]|[，。；：、\s])*$')
+        for match in trailing_img_pattern.finditer(line_text):
+            suffix = line_text[match.end():]
+            if not trailing_img_suffix.fullmatch(suffix):
+                continue
+            pos_already_matched = any(m['start'] <= match.start() < m['end'] for m in all_matches)
+            if pos_already_matched:
+                continue
+
+            gloss_char = ''
+            if match.group(1):
+                cjk_chars = re.findall(r'[\u4E00-\u9FFF]', match.group(1))
+                if cjk_chars:
+                    gloss_char = cjk_chars[0]
+
+            all_matches.append({
+                'word': match.group(0),
+                'start': match.start(),
+                'end': match.end(),
+                'rset': rhyme_sets_with_images[0],
+                'is_gloss': bool(gloss_char),
+                'gloss_char': gloss_char
+            })
     
     # Sort matches by position (descending) to annotate from right to left
     all_matches.sort(key=lambda m: m['start'], reverse=True)
@@ -2252,8 +2274,11 @@ def extract_chapter2_poems(pdf_path, start_page=21, end_page=141, tone_lookup=No
                 if state == 'IN_NOTES':
                     # Footnotes start with [n] pattern
                     if re.match(r'^\[\d+\]', line.strip()):
+                        note_match = re.match(r'^\[(\d+)\]', line.strip())
                         # Attach this note directly to the pending segment
                         if pending_rhyme_target_idx is not None and pending_rhyme_target_idx < len(segments):
+                            if note_match:
+                                restore_terminal_note_marker(segments[pending_rhyme_target_idx], note_match.group(1))
                             segments[pending_rhyme_target_idx]['notes'].append(line.strip())
                         else:
                             # Fallback to current_notes for next segment (shouldn't happen normally)

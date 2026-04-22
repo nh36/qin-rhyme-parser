@@ -26,11 +26,12 @@ What the canary checks
 - Exact (TableID, RhymeSegment) matching: the canary compares the row identified by TableID+RhymeSegment against the expected token sequence (including duplicates and order).
 - Strict token sequence equality: tokens must match exactly (no deduplication allowed).
 - Token-count vs tone-count invariant: len(tokens) must equal len(tone_tokens) for the checked rows.
+- Export-level poem-line canaries: the canary also checks selected `poem_lines.<ts>.csv` rows for known parser edge cases such as single-character lines, restored terminal note markers, image-rhyme tagging, and cross-page rhyme annotation.
 - If a specified key is missing the canary fails and provides candidate rows for that RhymeSegment (RowID, TableID, page, token preview) to make updating expected_canaries.json straightforward.
 
 Files
 
-- scripts/expected_canaries.json — the expected canary definitions (TableID, RhymeSegment, expected_tokens, expect_tone_count, comment).
+- scripts/expected_canaries.json — expected table canaries plus poem-line canaries for export-level parser regressions.
 - scripts/regression_canaries.py — manifest-driven canary runner.
 
 Notes
