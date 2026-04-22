@@ -1,109 +1,194 @@
 #!/usr/bin/env python3
-import csv, glob, sys, os, json, argparse
+import argparse
+import csv
+import json
+import sys
+from pathlib import Path
 
-parser = argparse.ArgumentParser(description='Deterministic regression canary using manifest')
-parser.add_argument('--manifest', help='Path to manifest JSON (optional)')
-args = parser.parse_args()
 
-manifest_path = args.manifest if 'args' in globals() else None
-if not manifest_path:
-    candidates = sorted(glob.glob('outputs/manifest.*.json'))
-    if candidates:
-        manifest_path = candidates[-1]
-    elif os.path.exists('outputs/latest_manifest.json'):
-        manifest_path = 'outputs/latest_manifest.json'
-    else:
+def parse_args():
+    parser = argparse.ArgumentParser(description='Deterministic regression canary using manifest')
+    parser.add_argument('--manifest', help='Path to manifest JSON (optional)')
+    return parser.parse_args()
+
+
+def resolve_manifest_path(cli_value):
+    if cli_value:
+        return Path(cli_value)
+
+    manifest_candidates = sorted(Path('outputs').glob('manifest.*.json'))
+    if manifest_candidates:
+        return manifest_candidates[-1]
+
+    latest_manifest = Path('outputs/latest_manifest.json')
+    if latest_manifest.exists():
+        return latest_manifest
+
+    return None
+
+
+def load_manifest(manifest_path):
+    try:
+        with manifest_path.open('r', encoding='utf-8') as mf:
+            return json.load(mf)
+    except Exception as exc:
+        print(f'Failed to read manifest {manifest_path}: {exc}')
+        sys.exit(2)
+
+
+def resolve_manifest_file(manifest_path, manifest, prefix, suffixes):
+    run_id = manifest.get('run_id') or ''
+    run_dir = Path('outputs') / f'run_{run_id}' if run_id else None
+    search_roots = []
+
+    if manifest_path.parent != Path('.'):
+        search_roots.append(manifest_path.parent)
+    if run_dir:
+        search_roots.append(run_dir)
+    search_roots.append(Path('outputs'))
+
+    seen = set()
+    for fn in manifest.get('files', []):
+        if not fn.startswith(prefix) or not any(fn.endswith(suffix) for suffix in suffixes):
+            continue
+        for root in search_roots:
+            candidate = root / fn
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+            if candidate.exists():
+                return candidate
+
+    for root in search_roots:
+        if not root.exists():
+            continue
+        for suffix in suffixes:
+            matches = sorted(root.glob(f'{prefix}*{suffix}'))
+            if matches:
+                return matches[-1]
+
+    return None
+
+
+def read_delimited_rows(path):
+    delimiter = '\t' if path.suffix.lower() == '.tsv' else ','
+    with path.open('r', encoding='utf-8-sig', newline='') as f:
+        reader = csv.DictReader(f, delimiter=delimiter)
+        return list(reader)
+
+
+def load_expected_canaries():
+    expected_path = Path('scripts/expected_canaries.json')
+    if not expected_path.exists():
+        print(f'Expected canaries file not found: {expected_path}')
+        sys.exit(2)
+
+    try:
+        with expected_path.open('r', encoding='utf-8') as ef:
+            expected_doc = json.load(ef)
+    except Exception as exc:
+        print(f'Failed to read expected canaries: {exc}')
+        sys.exit(2)
+
+    return expected_doc.get('canaries', [])
+
+
+def build_rows_index(rows):
+    rows_index = {}
+    for row in rows:
+        try:
+            seg = int(row.get('RhymeSegment') or 0)
+        except Exception:
+            seg = None
+        key = (row.get('TableID'), seg)
+        rows_index.setdefault(key, []).append(row)
+    return rows_index
+
+
+def segment_candidates(rows_index, seg):
+    candidates = []
+    for (table_id, row_seg), rows in rows_index.items():
+        if row_seg != seg:
+            continue
+        for row in rows:
+            toks = [t.strip() for t in (row.get('rhyme_tokens') or '').split('|') if t.strip()]
+            candidates.append({
+                'RowID': row.get('RowID'),
+                'TableID': table_id,
+                'page': row.get('page'),
+                'tokens_preview': toks[:10],
+            })
+    return candidates
+
+
+def main():
+    args = parse_args()
+    manifest_path = resolve_manifest_path(args.manifest)
+    if not manifest_path or not manifest_path.exists():
         print('No manifest found in outputs/; run parser first')
         sys.exit(2)
 
-try:
-    with open(manifest_path, 'r', encoding='utf-8') as mf:
-        manifest = json.load(mf)
-except Exception as e:
-    print(f'Failed to read manifest {manifest_path}: {e}')
-    sys.exit(2)
-
-ann = None
-for fn in manifest.get('files', []):
-    if fn.startswith('rhyme_annotations.') and fn.endswith('.csv'):
-        ann = os.path.join('outputs', fn)
-        break
-if not ann:
-    files = sorted(glob.glob('outputs/rhyme_annotations.*.csv'))
-    if not files:
-        print('No annotation CSV found; run parser first')
+    manifest = load_manifest(manifest_path)
+    ann_path = resolve_manifest_file(manifest_path, manifest, 'rhyme_annotations.', ('.tsv', '.csv'))
+    if not ann_path:
+        print('No annotation file found from manifest or outputs/; run parser first')
         sys.exit(2)
-    ann = files[-1]
 
-# load explicit expected canaries file
-expected_path = os.path.join('scripts', 'expected_canaries.json')
-if not os.path.exists(expected_path):
-    print(f'Expected canaries file not found: {expected_path}')
-    sys.exit(2)
-try:
-    with open(expected_path, 'r', encoding='utf-8') as ef:
-        expected_doc = json.load(ef)
-except Exception as e:
-    print(f'Failed to read expected canaries: {e}')
-    sys.exit(2)
+    expected_list = load_expected_canaries()
+    rows = read_delimited_rows(ann_path)
+    rows_index = build_rows_index(rows)
+    errors = []
 
-expected_list = expected_doc.get('canaries', [])
-errors = []
-
-# index rows by (TableID, RhymeSegment)
-rows_index = {}
-with open(ann, 'r', encoding='utf-8') as f:
-    rd = csv.DictReader(f, delimiter='\t')
-    for row in rd:
-        try:
-            seg = int(row.get('RhymeSegment') or 0)
-        except:
-            seg = None
-        table = row.get('TableID')
+    for item in expected_list:
+        table = item.get('TableID')
+        seg = item.get('RhymeSegment')
+        expected_tokens = item.get('expected_tokens', [])
+        expect_tone_count = item.get('expect_tone_count', None)
         key = (table, seg)
-        rows_index.setdefault(key, []).append(row)
+        matches = rows_index.get(key, [])
 
-# helper to present candidates for a segment
-def segment_candidates(seg):
-    candidates = []
-    for (t, s), rows in rows_index.items():
-        if s == seg:
-            for r in rows:
-                toks = [t_.strip() for t_ in (r.get('rhyme_tokens') or '').split('|') if t_.strip()]
-                candidates.append({'RowID': r.get('RowID'), 'TableID': t, 'page': r.get('page'), 'tokens_preview': toks[:10]})
-    return candidates
+        if not matches:
+            cands = segment_candidates(rows_index, seg)
+            errors.append(
+                f'Expected (TableID={table},RhymeSegment={seg}) not found in {ann_path}; '
+                f'candidates for segment {seg}: {cands}'
+            )
+            continue
 
-for item in expected_list:
-    table = item.get('TableID')
-    seg = item.get('RhymeSegment')
-    expected_tokens = item.get('expected_tokens', [])
-    expect_tone_count = item.get('expect_tone_count', None)
-    key = (table, seg)
-    rows = rows_index.get(key, [])
-    if not rows:
-        # fail with helpful candidate list
-        cands = segment_candidates(seg)
-        errors.append(f'Expected (TableID={table},RhymeSegment={seg}) not found in {ann}; candidates for segment {seg}: {cands}')
-        continue
-    if len(rows) > 1:
-        ids = [r.get('RowID') + f" (page={r.get('page')})" for r in rows]
-        errors.append(f'Expected key (TableID={table},RhymeSegment={seg}) is ambiguous; matches: {ids}')
-        continue
-    row = rows[0]
-    toks = [t.strip() for t in (row.get('rhyme_tokens') or '').split('|') if t.strip()]
-    tones = [t.strip() for t in (row.get('tone_tokens') or '').split('|') if t.strip()]
-    if toks != expected_tokens:
-        errors.append(f'For (TableID={table},RhymeSegment={seg}) tokens mismatch: got {toks}, expected {expected_tokens} (RowID={row.get("RowID")})')
-    if expect_tone_count is not None and len(toks) != expect_tone_count:
-        errors.append(f'For (TableID={table},RhymeSegment={seg}) token count {len(toks)} != expected tone count {expect_tone_count} (RowID={row.get("RowID")})')
-    if len(toks) != len(tones):
-        errors.append(f'For (TableID={table},RhymeSegment={seg}) token/tone count mismatch: {len(toks)} vs {len(tones)} (RowID={row.get("RowID")})')
+        if len(matches) > 1:
+            ids = [f"{row.get('RowID')} (page={row.get('page')})" for row in matches]
+            errors.append(f'Expected key (TableID={table},RhymeSegment={seg}) is ambiguous; matches: {ids}')
+            continue
 
-if errors:
-    print('REGRESSION TEST FAILED')
-    for e in errors:
-        print('-', e)
-    sys.exit(2)
+        row = matches[0]
+        toks = [t.strip() for t in (row.get('rhyme_tokens') or '').split('|') if t.strip()]
+        tones = [t.strip() for t in (row.get('tone_tokens') or '').split('|') if t.strip()]
 
-print('REGRESSION TEST PASSED')
-sys.exit(0)
+        if toks != expected_tokens:
+            errors.append(
+                f'For (TableID={table},RhymeSegment={seg}) tokens mismatch: '
+                f'got {toks}, expected {expected_tokens} (RowID={row.get("RowID")})'
+            )
+        if expect_tone_count is not None and len(toks) != expect_tone_count:
+            errors.append(
+                f'For (TableID={table},RhymeSegment={seg}) token count {len(toks)} != '
+                f'expected tone count {expect_tone_count} (RowID={row.get("RowID")})'
+            )
+        if len(toks) != len(tones):
+            errors.append(
+                f'For (TableID={table},RhymeSegment={seg}) token/tone count mismatch: '
+                f'{len(toks)} vs {len(tones)} (RowID={row.get("RowID")})'
+            )
+
+    if errors:
+        print('REGRESSION TEST FAILED')
+        for error in errors:
+            print('-', error)
+        sys.exit(2)
+
+    print('REGRESSION TEST PASSED')
+    sys.exit(0)
+
+
+if __name__ == '__main__':
+    main()

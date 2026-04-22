@@ -6,19 +6,20 @@ Workflow
 
    python3 main.py --mode both --outdir outputs --pdf hudie2023_qin_rhymes.pdf
 
-   This creates timestamped files in outputs/, including:
-   - rhyme_annotations.<ts>.csv
-   - poem_lines.<ts>.csv
-   - rhyme_output.<ts>.txt
-   - warnings.<ts>.json
-   - summary.<ts>.json
-   - manifest.<ts>.json and latest_manifest.json (lists exact filenames emitted)
+   This creates a timestamped run directory under `outputs/`, plus a root `latest_manifest.json`:
+   - `outputs/run_<ts>/rhyme_annotations.<ts>.tsv`
+   - `outputs/run_<ts>/poem_lines.<ts>.csv`
+   - `outputs/run_<ts>/rhyme_output.<ts>.tsv`
+   - `outputs/run_<ts>/warnings.<ts>.json`
+   - `outputs/run_<ts>/summary.<ts>.json`
+   - `outputs/run_<ts>/manifest.<ts>.json`
+   - `outputs/latest_manifest.json` (records the fresh run id and emitted filenames)
 
 2. Run the manifest-driven regression canary:
 
-   python3 scripts/regression_canaries.py --manifest outputs/manifest.<ts>.json
+   python3 scripts/regression_canaries.py --manifest outputs/run_<ts>/manifest.<ts>.json
 
-   If --manifest is omitted the script will use outputs/latest_manifest.json.
+   If `--manifest` is omitted the script will use `outputs/latest_manifest.json` and resolve the annotation file from that manifest's `run_id`.
 
 What the canary checks
 

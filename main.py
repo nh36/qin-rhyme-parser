@@ -128,6 +128,8 @@ def is_verse_like(text, context_lines=None):
     # Check for section markers
     if text in ['【用韻情況】', '【註釋】', '【注释】']:
         return False, 0.0
+    if strip_note_section_header(text) is not None:
+        return False, 0.0
     
     length = get_line_length(text)
     confidence = 0.0
@@ -322,6 +324,53 @@ def extract_titles_from_source(source_text):
     return [title.strip() for title in re.findall(r'《([^》]+)》', source_text)]
 
 
+def strip_note_section_header(text):
+    """Remove a leading note-section header and return the remaining payload."""
+    if text is None:
+        return None
+    match = re.match(r'^【(?:註釋|注釋|注释)】\s*(.*)$', text.strip())
+    if not match:
+        return None
+    return match.group(1).strip()
+
+
+def infer_single_group_rhyme_type(label):
+    """Infer 獨 for clear single-group labels like 陽部 when no type is explicit."""
+    if not label or extract_rhyme_type(label):
+        return ''
+
+    category = normalize_rhyme_category(label)
+    if len(category) != 1:
+        return ''
+
+    if '部' in label and not any(sep in label for sep in ['、', '，', ',', '/', '／']):
+        return '獨'
+
+    return ''
+
+
+def extract_embedded_note_text(text):
+    """Return note text for stray note lines that leaked into verse segments."""
+    if not text:
+        return ''
+
+    stripped = text.strip()
+    payload = strip_note_section_header(stripped)
+    if payload is not None:
+        stripped = payload
+
+    if not re.match(r'^\[\d+\]', stripped):
+        return ''
+
+    note_body = re.sub(r'^\[\d+\]\s*', '', stripped)
+    if is_footnote_or_commentary(note_body) or any(
+        marker in note_body for marker in ['本段文字', '今按', '整理者', '李零', '王寧', '子居', '：', ':', '《']
+    ):
+        return stripped
+
+    return ''
+
+
 def build_tone_lookup(annotation_rows):
     """Build a title-keyed lookup of rhyme words to tones from table annotations."""
     tone_index = defaultdict(list)
@@ -342,6 +391,7 @@ def build_tone_lookup(annotation_rows):
             'ordered_tones': tone_tokens,
             'word_tones': {word: tone for word, tone in zip(rhyme_tokens, tone_tokens) if word and tone},
             'words': set(rhyme_tokens),
+            'rhyme_type': infer_single_group_rhyme_type(row.get('OC_RhymeGroup', '')),
         }
 
         for title in titles:
@@ -1251,6 +1301,7 @@ def split_verse_lines_by_slip_id(text):
     # Skip lines that look like footnotes, bibliography, or commentary
     skip_patterns = [
         r'^\[\d+\]',           # Footnote lines [1] ...
+        r'^【(?:註釋|注釋|注释)】',  # Note-section headers merged with note text
         r'^\d+年',             # Year references
         r'頁[。，]',           # Page references
         r'第\d+期',            # Journal issue numbers
@@ -1448,7 +1499,7 @@ def parse_rhyme_info(rhyme_info_raw):
                 'label': label,
                 'words': words,
                 'category': normalize_rhyme_category(label),
-                'rhyme_type': extract_rhyme_type(label),
+                'rhyme_type': extract_rhyme_type(label) or infer_single_group_rhyme_type(label),
                 'tone_map': {}
             })
             set_idx += 1
@@ -1457,7 +1508,7 @@ def parse_rhyme_info(rhyme_info_raw):
 
 
 def enrich_rhyme_sets_with_tones(rhyme_sets, text_name, tone_lookup):
-    """Attach per-word tone data from table annotations to prose rhyme sets."""
+    """Attach per-word tone data and safe single-group rhyme types from annotations."""
     if not rhyme_sets or not text_name or not tone_lookup:
         return rhyme_sets
 
@@ -1515,6 +1566,11 @@ def enrich_rhyme_sets_with_tones(rhyme_sets, text_name, tone_lookup):
                         tone_map[word] = tone
 
         rset['tone_map'] = tone_map
+        if not rset.get('rhyme_type'):
+            candidate_type = best_candidate.get('rhyme_type', '')
+            candidate_group = best_candidate.get('group', '')
+            if candidate_type and (not category or category == candidate_group):
+                rset['rhyme_type'] = candidate_type
 
     return rhyme_sets
 
@@ -1827,6 +1883,32 @@ def segment_looks_like_intro(segment):
     return any(re.search(pattern, text) for text in texts for pattern in intro_patterns)
 
 
+def segment_looks_like_page_break_continuation(left, right):
+    """Detect verse fragments stranded on the previous page before rhyme info resumes."""
+    if not left.get('lines') or not right.get('lines'):
+        return False
+
+    left_page = left.get('start_page') or 0
+    right_page = right.get('start_page') or 0
+    if right_page - left_page != 1:
+        return False
+
+    left_lines = left.get('lines', [])
+    if len(left_lines) > 9:
+        return False
+
+    # Prefer cases where the fragment looks like a genuine continuation,
+    # not a fresh section opening or commentary.
+    left_texts = [line.get('text', '').strip() for line in left_lines if line.get('text', '').strip()]
+    if not left_texts:
+        return False
+
+    if any(is_footnote_or_commentary(text) for text in left_texts):
+        return False
+
+    return True
+
+
 def merge_segment_pair(left, right):
     """Merge two adjacent segments that belong to the same poem."""
     merged = dict(left)
@@ -1875,8 +1957,13 @@ def merge_related_segments(segments):
             next_has_rhyme = bool(nxt.get('rhyme_info_raw'))
             contiguous_slips = slip_ranges_are_adjacent(current.get('slip_range', ''), nxt.get('slip_range', ''))
             intro_fragment = segment_looks_like_intro(current)
+            page_break_fragment = segment_looks_like_page_break_continuation(current, nxt)
 
-            if same_context and current_needs_rhyme and next_has_rhyme and (contiguous_slips or (same_title and intro_fragment)):
+            if same_context and current_needs_rhyme and next_has_rhyme and (
+                contiguous_slips or
+                (same_title and intro_fragment) or
+                (same_title and page_break_fragment)
+            ):
                 merged.append(merge_segment_pair(current, nxt))
                 i += 2
                 continue
@@ -2142,8 +2229,9 @@ def extract_chapter2_poems(pdf_path, start_page=21, end_page=141, tone_lookup=No
                     state = 'COLLECTING_RHYME_INFO'
                     current_rhyme_info_lines = []
                     continue
-                
-                if line in ['【註釋】', '【注释】']:
+
+                note_payload = strip_note_section_header(line)
+                if note_payload is not None:
                     # Start notes section - collect footnotes for PRECEDING segment
                     if state == 'COLLECTING_RHYME_INFO':
                         # Attach collected rhyme info to pending segment
@@ -2156,7 +2244,9 @@ def extract_chapter2_poems(pdf_path, start_page=21, end_page=141, tone_lookup=No
                         flush_segment()
                     # Notes will be attached to pending_rhyme_target_idx (the segment we just finished)
                     state = 'IN_NOTES'
-                    continue
+                    line = note_payload
+                    if not line:
+                        continue
                 
                 # Collect footnotes in notes section - attach to PRECEDING segment
                 if state == 'IN_NOTES':
@@ -2312,6 +2402,20 @@ def extract_chapter2_poems(pdf_path, start_page=21, end_page=141, tone_lookup=No
         flush_segment()
 
     segments = merge_related_segments(segments)
+
+    for segment in segments:
+        cleaned_lines = []
+        hoisted_notes = []
+        for line_data in segment.get('lines', []):
+            note_text = extract_embedded_note_text(line_data.get('text', ''))
+            if note_text:
+                hoisted_notes.append(note_text)
+                continue
+            cleaned_lines.append(line_data)
+        segment['lines'] = cleaned_lines
+        for note in hoisted_notes:
+            if note not in segment['notes']:
+                segment['notes'].append(note)
 
     # Post-process: annotate lines with rhyme patterns and collect diagnostics
     missed_tags = []
@@ -2578,11 +2682,7 @@ def export_annotated_poems(segments, output_dir):
         
         # Add notes if present (footnotes with parallel text references)
         if notes:
-            # Include all notes (no limit)
             for note in notes:
-                # Truncate very long notes
-                if len(note) > 500:
-                    note = note[:500] + '...'
                 poem_content.append(f"@note: {note}")
         
         poem_content.append("")

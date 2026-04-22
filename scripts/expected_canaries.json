@@ -1,26 +1,8 @@
 {
-  "note": "Canaries chosen to cover duplicate preservation, token-tone alignment, and wrapped-row behavior from the main tables (see README/tests).",
+  "note": "These canaries cover duplicates, alignment, and wrapped-row behaviour. TableIDs refer to the sections in the dissertation.",
   "canaries": [
-    {
-      "TableID": "P169_T001",
-      "RhymeSegment": 37,
-      "expected_tokens": ["人", "人"],
-      "expect_tone_count": 2,
-      "comment": "Duplicate token canary (韻段 37 in P169_T001) — checks duplicates preserved and tone count preserved."
-    },
-    {
-      "TableID": "P169_T001",
-      "RhymeSegment": 52,
-      "expected_tokens": ["喪", "英", "亡", "英"],
-      "expect_tone_count": 4,
-      "comment": "Repeated tokens with interleaving duplicates (韻段 52 in P169_T001) — checks non-lossy tokenization and order."
-    },
-    {
-      "TableID": "P169_T001",
-      "RhymeSegment": 17,
-      "expected_tokens": ["心", "音", "心"],
-      "expect_tone_count": 3,
-      "comment": "Wrapped-row canary (韻段 17 in P169_T001) — checks merge/forward-fill and token-to-tone alignment."
-    }
+    {"TableID": "P169_T001", "RhymeSegment": 37, "expected_tokens": ["人", "人"], "expect_tone_count": 2, "comment": "duplicate token case"},
+    {"TableID": "P169_T001", "RhymeSegment": 52, "expected_tokens": ["喪", "英", "亡", "英"], "expect_tone_count": 4, "comment": "multi-token with repeated token"},
+    {"TableID": "P169_T001", "RhymeSegment": 17, "expected_tokens": ["心", "音", "心"], "expect_tone_count": 3, "comment": "wrapped-row that previously lost a token"}
   ]
 }
